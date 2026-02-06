@@ -1,0 +1,39 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Kill Port 3000",
+            "type": "shell",
+            "command": "(for /f \"tokens=5\" %a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do taskkill /F /PID %a) & exit /b 0",
+            "options": {
+                "shell": {
+                    "executable": "cmd.exe",
+                    "args": ["/d", "/c"]
+                }
+            },
+            "presentation": {
+                "reveal": "silent",
+                "close": true
+            },
+            "isBackground": false,
+            "problemMatcher": []
+        },
+        {
+            "label": "Kill Port 3001",
+            "type": "shell",
+            "command": "(for /f \"tokens=5\" %a in ('netstat -ano ^| findstr :3001 ^| findstr LISTENING') do taskkill /F /PID %a) & exit /b 0",
+            "options": {
+                "shell": {
+                    "executable": "cmd.exe",
+                    "args": ["/d", "/c"]
+                }
+            },
+            "presentation": {
+                "reveal": "silent",
+                "close": true
+            },
+            "isBackground": false,
+            "problemMatcher": []
+        }
+    ]
+}

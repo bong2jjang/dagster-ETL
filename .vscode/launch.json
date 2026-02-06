@@ -1,0 +1,135 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Dagster Dev (테넌트 분리)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "dagster",
+            "args": [
+                "dev",
+                "-m", "etl.project_01",
+                "-m", "etl.default",
+                "-p", "3000"
+            ],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "DAGSTER_HOME": "${workspaceFolder}",
+                "DAGSTER_ENVIRONMENT": "dev",
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "preLaunchTask": "Kill Port 3000"
+        },
+        {
+            "name": "Dagster Dev (통합)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "dagster",
+            "args": ["dev", "-m", "etl.all", "-p", "3000"],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "DAGSTER_HOME": "${workspaceFolder}",
+                "DAGSTER_ENVIRONMENT": "dev",
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "preLaunchTask": "Kill Port 3000"
+        },
+        {
+            "name": "Dagster Dev (Port 3001)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "dagster",
+            "args": [
+                "dev",
+                "-m", "etl.project_01",
+                "-m", "etl.default",
+                "-p", "3001"
+            ],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "DAGSTER_HOME": "${workspaceFolder}",
+                "DAGSTER_ENVIRONMENT": "dev",
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "preLaunchTask": "Kill Port 3001"
+        },
+        {
+            "name": "Run Single Asset",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "dagster",
+            "args": [
+                "asset", "materialize",
+                "-m", "etl.all",
+                "--select", "${input:assetName}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "DAGSTER_HOME": "${workspaceFolder}",
+                "DAGSTER_ENVIRONMENT": "dev",
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Pytest: All Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["tests/", "-v"],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Pytest: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["${file}", "-v"],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ],
+    "inputs": [
+        {
+            "id": "assetName",
+            "type": "promptString",
+            "description": "Asset name (e.g., project_01/extract/lot_history)",
+            "default": "project_01/extract/lot_history"
+        }
+    ]
+}

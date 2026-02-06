@@ -1,0 +1,57 @@
+# Dagster instance configuration
+# 환경별로 다른 설정 파일 사용 가능 (dagster-{env}.yaml)
+
+# 스토리지 설정
+storage:
+  postgres:
+    postgres_db:
+      username:
+        env: DAGSTER_PG_USERNAME
+      password:
+        env: DAGSTER_PG_PASSWORD
+      hostname:
+        env: DAGSTER_PG_HOSTNAME
+      db_name:
+        env: DAGSTER_PG_DB_NAME
+      port: 5432
+
+# 실행 로그 스토리지
+compute_logs:
+  module: dagster.core.storage.local_compute_log_manager
+  class: LocalComputeLogManager
+  config:
+    base_dir: /var/log/dagster
+
+# Run Launcher 설정
+run_launcher:
+  module: dagster.core.launcher
+  class: DefaultRunLauncher
+
+# Run Coordinator 설정
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_concurrent_runs: 5
+
+# 센서/스케줄러 설정
+scheduler:
+  module: dagster.core.scheduler
+  class: DagsterDaemonScheduler
+
+# 텔레메트리 비활성화 (선택)
+telemetry:
+  enabled: false
+
+# 로컬 개발 환경용 간소화 설정
+# 아래 설정으로 교체하여 로컬에서 간단히 실행 가능
+#
+# storage:
+#   sqlite:
+#     base_dir: .dagster_home
+#
+# compute_logs:
+#   module: dagster.core.storage.local_compute_log_manager
+#   class: LocalComputeLogManager
+#   config:
+#     base_dir: .dagster_home/logs

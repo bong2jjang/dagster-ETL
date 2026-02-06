@@ -1,0 +1,82 @@
+# =============================================================================
+# 테넌트 설정 템플릿
+# 새 테넌트 추가 시 이 파일을 복사하여 tenant_{id}.yaml로 저장하세요
+# =============================================================================
+
+tenant:
+  # 필수: 테넌트 ID (소문자 영숫자, 언더스코어만 허용)
+  id: "tenant_id"
+
+  # 필수: 테넌트 이름 (표시용)
+  name: "Tenant Name"
+
+  # 전체 활성화 여부
+  enabled: true
+
+  # 환경별 활성화 설정
+  environments:
+    dev:
+      enabled: true
+    staging:
+      enabled: true
+    prod:
+      enabled: true
+
+  # ==========================================================================
+  # Source Database 설정 (테넌트별 독립 DB)
+  # ==========================================================================
+  source_database:
+    # 환경변수로 설정 가능: ${VAR_NAME:기본값}
+    host: "${TENANT_ID_DB_HOST:localhost}"
+    port: 5432
+    database: "tenant_source_db"
+    username: "${TENANT_ID_DB_USER:postgres}"
+    password: "${TENANT_ID_DB_PASSWORD:}"
+    schema: "public"
+
+  # ==========================================================================
+  # S3 Storage 설정 (테넌트별 경로 분리)
+  # ==========================================================================
+  storage:
+    bucket: "data-lake"
+    # S3 경로: s3://{bucket}/{base_path}/{stage}/job_name={job}/date={date}/
+    base_path: "project_id=tenant_id"
+
+  # ==========================================================================
+  # Target Database 설정 (공유 DB, project_id 컬럼으로 분리)
+  # ==========================================================================
+  target_database:
+    trino_host: "${TRINO_HOST:localhost}"
+    trino_port: 8080
+    trino_user: "${TRINO_USER:trino}"
+    trino_password: ""
+    target_catalog: "postgresql"
+    target_schema: "aps"
+
+  # ==========================================================================
+  # Job 설정
+  # ==========================================================================
+  jobs:
+    # 전체 ETL 파이프라인
+    daily_etl:
+      enabled: true
+      schedule:
+        cron: "0 2 * * *"  # 매일 02:00
+        timezone: "Asia/Seoul"
+        auto_start: false  # 수동 활성화 필요
+
+    # 개별 파이프라인
+    wip_pipeline:
+      enabled: true
+    cycle_time_pipeline:
+      enabled: true
+    equipment_pipeline:
+      enabled: true
+
+  # ==========================================================================
+  # 태그 (Dagster UI 필터링용)
+  # ==========================================================================
+  tags:
+    customer: "tenant_name"
+    region: "ap-northeast-2"
+    tier: "standard"

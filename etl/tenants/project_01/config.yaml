@@ -1,0 +1,58 @@
+# =============================================================================
+# Project 01 테넌트 설정
+# 커스텀 Transform 로직 사용
+# =============================================================================
+
+tenant:
+  id: "project_01"
+  name: "Project 01"
+  enabled: true
+
+  # 커스텀 코드 사용 여부
+  use_custom_code: true
+
+  environments:
+    dev:
+      enabled: true
+    staging:
+      enabled: true
+    prod:
+      enabled: false  # 운영은 별도 활성화 필요
+
+  source_database:
+    host: "${PROJECT_01_DB_HOST:localhost}"
+    port: 5432
+    database: "${PROJECT_01_DB_NAME:project_01_source_db}"
+    username: "${PROJECT_01_DB_USER:postgres}"
+    password: "${PROJECT_01_DB_PASSWORD:}"
+    schema: "public"
+
+  storage:
+    bucket: "${S3_BUCKET_NAME:data-lake}"
+    base_path: "project_id=project_01"
+
+  target_database:
+    trino_host: "${TRINO_HOST:localhost}"
+    trino_port: 8080
+    trino_user: "${TRINO_USER:trino}"
+    target_catalog: "postgresql"
+    target_schema: "aps"
+
+  jobs:
+    daily_etl:
+      enabled: true
+      schedule:
+        cron: "0 2 * * *"
+        timezone: "Asia/Seoul"
+        auto_start: false
+    wip_pipeline:
+      enabled: true
+    cycle_time_pipeline:
+      enabled: true
+    equipment_pipeline:
+      enabled: true
+
+  tags:
+    customer: "project_01"
+    region: "ap-northeast-2"
+    tier: "enterprise"

@@ -1,0 +1,55 @@
+# =============================================================================
+# Default 테넌트 설정
+# 공용 코드(common/)만 사용하는 기본 테넌트
+# =============================================================================
+
+tenant:
+  id: "default"
+  name: "Default Tenant"
+  enabled: true
+
+  environments:
+    dev:
+      enabled: true
+    staging:
+      enabled: true
+    prod:
+      enabled: true
+
+  source_database:
+    host: "${SOURCE_DB_HOST:localhost}"
+    port: 5432
+    database: "${SOURCE_DB_NAME:source_db}"
+    username: "${SOURCE_DB_USER:postgres}"
+    password: "${SOURCE_DB_PASSWORD:}"
+    schema: "public"
+
+  storage:
+    bucket: "${S3_BUCKET_NAME:data-lake}"
+    base_path: "project_id=default"
+
+  target_database:
+    trino_host: "${TRINO_HOST:localhost}"
+    trino_port: 8080
+    trino_user: "${TRINO_USER:trino}"
+    trino_password: ""
+    target_catalog: "postgresql"
+    target_schema: "aps"
+
+  jobs:
+    daily_etl:
+      enabled: true
+      schedule:
+        cron: "0 1 * * *"
+        timezone: "Asia/Seoul"
+        auto_start: false
+    wip_pipeline:
+      enabled: true
+    cycle_time_pipeline:
+      enabled: true
+    equipment_pipeline:
+      enabled: true
+
+  tags:
+    customer: "default"
+    region: "ap-northeast-2"
