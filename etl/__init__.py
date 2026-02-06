@@ -22,6 +22,7 @@ from etl.factories.asset_factory import AssetFactory
 from etl.factories.job_factory import JobFactory
 from etl.factories.resource_factory import ResourceFactory, get_shared_s3_config
 from etl.factories.schedule_factory import ScheduleFactory
+from etl.sensors.run_log_sensor import run_failure_log_sensor, run_success_log_sensor
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ def build_tenant_definitions(tenant_id: str) -> Definitions:
         resources=resources,
         jobs=jobs,
         schedules=schedules,
+        sensors=[run_success_log_sensor, run_failure_log_sensor],
     )
 
 
@@ -152,6 +154,7 @@ def build_all_definitions() -> Definitions:
         resources=all_resources,
         jobs=all_jobs,
         schedules=all_schedules,
+        sensors=[run_success_log_sensor, run_failure_log_sensor],
     )
 
 

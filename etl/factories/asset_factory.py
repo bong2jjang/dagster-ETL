@@ -8,6 +8,7 @@ PipelineAssetConfig 기반으로 extract → transfer → load 파이프라인 �
 - load (output_save): Trino에 적재 (선택, save_to_trino=True)
 """
 
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -107,6 +108,7 @@ class AssetFactory:
             s3: S3Resource,
         ) -> Output[dict[str, Any]]:
             logger = ETLLogger(f"extract.{tenant_id}")
+            start_time = time.time()
 
             # 파티션 날짜 결정
             partition_date = context.partition_key if partitions_def else None
@@ -139,11 +141,25 @@ class AssetFactory:
             else:
                 s3_path = None
 
+            elapsed_sec = round(time.time() - start_time, 3)
+
             logger.log_extract_complete(
                 full_asset_name,
                 partition_date or "latest",
                 row_count,
                 s3_path or "N/A (S3 save disabled)",
+            )
+
+            context.log.info(
+                "Extract completed: %s",
+                full_asset_name,
+                extra={
+                    "tenant_id": tenant_id,
+                    "row_count": row_count,
+                    "s3_path": s3_path or "disabled",
+                    "partition_date": partition_date or "latest",
+                    "elapsed_sec": elapsed_sec,
+                },
             )
 
             # 메타데이터 구성
@@ -152,6 +168,7 @@ class AssetFactory:
                 "s3_path": MetadataValue.text(s3_path or "disabled"),
                 "partition_date": MetadataValue.text(partition_date or "latest"),
                 "tenant_id": MetadataValue.text(tenant_id),
+                "elapsed_sec": MetadataValue.float(elapsed_sec),
                 # 컬럼 스키마 (UI의 "Columns" 탭에 표시)
                 "dagster/column_schema": TableSchema(
                     columns=[
@@ -229,6 +246,7 @@ class AssetFactory:
             **inputs: dict[str, Any],
         ) -> Output[dict[str, Any]]:
             logger = ETLLogger(f"transfer.{tenant_id}")
+            start_time = time.time()
             partition_date = context.partition_key if partitions_def else "latest"
 
             # 입력 데이터 로드
@@ -258,8 +276,22 @@ class AssetFactory:
             )
 
             output_rows = len(output_df)
+            elapsed_sec = round(time.time() - start_time, 3)
+
             logger.log_transform_complete(
                 full_asset_name, partition_date, total_input_rows, output_rows, s3_path
+            )
+
+            context.log.info(
+                "Transfer completed: %s",
+                full_asset_name,
+                extra={
+                    "tenant_id": tenant_id,
+                    "input_rows": total_input_rows,
+                    "output_rows": output_rows,
+                    "partition_date": partition_date,
+                    "elapsed_sec": elapsed_sec,
+                },
             )
 
             return Output(
@@ -274,6 +306,7 @@ class AssetFactory:
                     "s3_path": MetadataValue.path(s3_path),
                     "partition_date": MetadataValue.text(partition_date),
                     "tenant_id": MetadataValue.text(tenant_id),
+                    "elapsed_sec": MetadataValue.float(elapsed_sec),
                 },
             )
 
@@ -335,6 +368,7 @@ class AssetFactory:
             **inputs: dict[str, Any],
         ) -> Output[dict[str, Any]]:
             logger = ETLLogger(f"load.{tenant_id}")
+            start_time = time.time()
             partition_date = context.partition_key if partitions_def else "latest"
             input_data = inputs[input_asset_name]
 
@@ -356,8 +390,23 @@ class AssetFactory:
             )
 
             row_count = result["inserted"]
+            elapsed_sec = round(time.time() - start_time, 3)
+
             logger.log_load_complete(
                 full_asset_name, partition_date, row_count, target_table
+            )
+
+            context.log.info(
+                "Load completed: %s",
+                full_asset_name,
+                extra={
+                    "tenant_id": tenant_id,
+                    "target_table": f"{target_schema}.{target_table}",
+                    "inserted_rows": result["inserted"],
+                    "deleted_rows": result["deleted"],
+                    "partition_date": partition_date,
+                    "elapsed_sec": elapsed_sec,
+                },
             )
 
             return Output(
@@ -376,6 +425,7 @@ class AssetFactory:
                     "inserted_rows": MetadataValue.int(result["inserted"]),
                     "partition_date": MetadataValue.text(partition_date),
                     "tenant_id": MetadataValue.text(tenant_id),
+                    "elapsed_sec": MetadataValue.float(elapsed_sec),
                 },
             )
 

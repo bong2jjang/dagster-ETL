@@ -5,6 +5,44 @@
 
 ---
 
+## 작업 이력: Observability 시스템 구축 (2026-02-06)
+
+### 변경 내용
+Dagster Event Log 기반 실전 로깅/관측 시스템 구축.
+
+**신규 파일:**
+1. `etl/utils/observability.py` — `RunAnalyzer` 클래스 (event log → DataFrame)
+   - `get_failures()`: STEP_FAILURE 이벤트 추출
+   - `get_materializations()`: ASSET_MATERIALIZATION + metadata 추출
+   - `get_step_durations()`: step 실행 시간 계산
+   - `to_dataframe()`: 통합 DataFrame 변환
+
+2. `etl/hooks/etl_hooks.py` — Step-level hooks
+   - `etl_success_hook`: step 성공 시 duration + 구조화 로그
+   - `etl_failure_hook`: step 실패 시 에러 정보 + 구조화 로그
+
+3. `etl/sensors/run_log_sensor.py` — Event Log → S3 export
+   - `run_success_log_sensor`: run 성공 시 event log를 S3 Parquet으로 export
+   - `run_failure_log_sensor`: run 실패 시 event log를 S3 Parquet으로 export
+   - S3 경로: `project_id={tenant_id}/logs/run_events/date={YYYYMMDD}/{run_id}.parquet`
+
+4. `docs/trino_observability_ddl.sql` — Trino 외부 테이블 DDL + 쿼리 예시
+
+**수정 파일:**
+- `etl/factories/asset_factory.py`: 각 asset에 `elapsed_sec` 측정 + `context.log.info()` with `extra={}` 추가
+- `etl/factories/job_factory.py`: 모든 job에 `hooks={etl_success_hook, etl_failure_hook}` 연결
+- `etl/__init__.py`: Definitions에 `sensors=` 등록
+- `etl/utils/__init__.py`: `RunAnalyzer` export 추가
+
+**아키텍처:**
+```
+Asset 실행 → elapsed_sec 측정 + context.log.info(extra={})
+Step 완료 → etl_success_hook / etl_failure_hook (구조화 로그)
+Run 완료 → run_status_sensor → RunAnalyzer → S3 Parquet → Trino 쿼리
+```
+
+---
+
 ## 작업 이력: 파이프라인 구조 변경 (2026-02-06)
 
 ### 변경 내용

@@ -6,7 +6,10 @@ PipelineAssetConfig 기반으로 파티션/비파티션 Job 분리
 from dagster import AssetKey, AssetSelection, JobDefinition, define_asset_job
 
 from etl.config.tenant_config import PipelineAssetConfig, TenantConfig
+from etl.hooks.etl_hooks import etl_failure_hook, etl_success_hook
 from etl.partitions.daily import daily_partitions_def
+
+ETL_HOOKS = {etl_success_hook, etl_failure_hook}
 
 
 class JobFactory:
@@ -122,6 +125,7 @@ class JobFactory:
             description=f"[{self.tenant.name}] Daily ETL Pipeline (Extract → Transfer → Load)",
             selection=AssetSelection.assets(*asset_keys),
             partitions_def=daily_partitions_def,
+            hooks=ETL_HOOKS,
             tags={
                 "tenant_id": self.tenant_id,
                 "pipeline": "daily-etl",
@@ -141,6 +145,7 @@ class JobFactory:
             name=f"{self.tenant_id}_master_sync_job",
             description=f"[{self.tenant.name}] Master Data Sync (Non-partitioned)",
             selection=AssetSelection.assets(*asset_keys),
+            hooks=ETL_HOOKS,
             tags={
                 "tenant_id": self.tenant_id,
                 "pipeline": "master-sync",
@@ -193,6 +198,7 @@ class JobFactory:
             description=f"[{self.tenant.name}] {description}",
             selection=AssetSelection.assets(*asset_keys),
             partitions_def=daily_partitions_def if has_partition else None,
+            hooks=ETL_HOOKS,
             tags={
                 "tenant_id": self.tenant_id,
                 "pipeline": job_name_suffix.replace("_", "-"),
@@ -206,6 +212,7 @@ class JobFactory:
             name=f"{self.tenant_id}_dbt_transform_job",
             description=f"[{self.tenant.name}] dbt Transform Pipeline",
             selection=AssetSelection.key_prefixes([self.tenant_id, "dbt"]),
+            hooks=ETL_HOOKS,
             tags={
                 "tenant_id": self.tenant_id,
                 "pipeline": "dbt-transform",
