@@ -3,7 +3,7 @@ Job Factory - 테넌트별 Job 동적 생성
 PipelineAssetConfig 기반으로 파티션/비파티션 Job 분리
 """
 
-from dagster import AssetKey, AssetSelection, define_asset_job
+from dagster import AssetKey, AssetSelection, JobDefinition, define_asset_job
 
 from etl.config.tenant_config import PipelineAssetConfig, TenantConfig
 from etl.partitions.daily import daily_partitions_def
@@ -44,7 +44,7 @@ class JobFactory:
             keys.append(self._asset_key("load", name))
         return keys
 
-    def create_all_jobs(self) -> list:
+    def create_all_jobs(self) -> list[JobDefinition]:
         """테넌트의 모든 활성화된 Job 생성"""
         jobs = []
         jobs_config = self.tenant.jobs
@@ -65,7 +65,9 @@ class JobFactory:
         # WIP Pipeline Job
         if jobs_config.wip_pipeline.enabled:
             job = self._create_pipeline_job(
-                pipelines, "wip_pipeline", "WIP Data Pipeline",
+                pipelines,
+                "wip_pipeline",
+                "WIP Data Pipeline",
                 extract_names=["lot_history"],
                 transfer_names=["aps_wip"],
                 load_names=["aps_wip"],
@@ -76,7 +78,9 @@ class JobFactory:
         # Cycle Time Pipeline Job
         if jobs_config.cycle_time_pipeline.enabled:
             job = self._create_pipeline_job(
-                pipelines, "cycle_time_pipeline", "Cycle Time Pipeline",
+                pipelines,
+                "cycle_time_pipeline",
+                "Cycle Time Pipeline",
                 extract_names=["lot_history", "process_result"],
                 transfer_names=["cycle_time"],
                 load_names=["cycle_time"],
@@ -87,7 +91,9 @@ class JobFactory:
         # Equipment Pipeline Job
         if jobs_config.equipment_pipeline.enabled:
             job = self._create_pipeline_job(
-                pipelines, "equipment_pipeline", "Equipment Utilization Pipeline",
+                pipelines,
+                "equipment_pipeline",
+                "Equipment Utilization Pipeline",
                 extract_names=["equipment_event"],
                 transfer_names=["equipment_utilization"],
                 load_names=["equipment_utilization"],
@@ -103,7 +109,9 @@ class JobFactory:
 
         return jobs
 
-    def _create_daily_etl_job(self, partitioned_pipelines: dict[str, PipelineAssetConfig]):
+    def _create_daily_etl_job(
+        self, partitioned_pipelines: dict[str, PipelineAssetConfig]
+    ):
         """Daily ETL 파이프라인 Job (파티션 있는 asset만)"""
         asset_keys = []
         for name, config in partitioned_pipelines.items():
@@ -121,7 +129,9 @@ class JobFactory:
             },
         )
 
-    def _create_master_sync_job(self, non_partitioned_pipelines: dict[str, PipelineAssetConfig]):
+    def _create_master_sync_job(
+        self, non_partitioned_pipelines: dict[str, PipelineAssetConfig]
+    ):
         """마스터 데이터 동기화 Job (비파티션 asset)"""
         asset_keys = []
         for name, config in non_partitioned_pipelines.items():
@@ -155,7 +165,12 @@ class JobFactory:
                 asset_keys.append(self._asset_key("extract", name))
 
         for name in transfer_names:
-            if name in pipelines and pipelines.get(name, PipelineAssetConfig(source_table="")).has_transfer:
+            if (
+                name in pipelines
+                and pipelines.get(
+                    name, PipelineAssetConfig(source_table="")
+                ).has_transfer
+            ):
                 asset_keys.append(self._asset_key("transfer", name))
 
         for name in load_names:

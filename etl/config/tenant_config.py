@@ -4,7 +4,6 @@ Pydantic 기반 테넌트 설정 스키마 정의
 """
 
 import re
-from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -30,7 +29,11 @@ class StorageConfig(BaseModel):
     base_path: str  # e.g., "project_id=acme"
 
     def build_s3_key(
-        self, stage: str, job_name: str, partition_date: str, filename: str = "data.parquet"
+        self,
+        stage: str,
+        job_name: str,
+        partition_date: str,
+        filename: str = "data.parquet",
     ) -> str:
         """테넌트 S3 경로 생성"""
         date_formatted = partition_date.replace("-", "")
@@ -86,7 +89,9 @@ class TrinoOutputConfig(BaseModel):
 class DbtTransformConfig(BaseModel):
     """dbt Transform 선택 설정"""
 
-    dbt_select: str = ""  # dbt 모델 선택 (e.g., "stg_cfg_item_master tfm_item_master_enriched")
+    dbt_select: str = (
+        ""  # dbt 모델 선택 (e.g., "stg_cfg_item_master tfm_item_master_enriched")
+    )
     dbt_exclude: str = ""  # dbt 모델 제외 (선택)
 
 
@@ -124,7 +129,9 @@ class PipelineAssetConfig(BaseModel):
     date_column: str | None = None  # None이면 파티션 없음 (마스터 데이터)
     save_to_s3: bool = True  # Extract 결과 S3 Parquet 저장 여부
     has_transfer: bool = False  # Python transfer 단계 포함 여부
-    transfer_inputs: list[str] | None = None  # transfer의 입력 asset 목록 (None이면 자기 자신)
+    transfer_inputs: list[str] | None = (
+        None  # transfer의 입력 asset 목록 (None이면 자기 자신)
+    )
     has_dbt_transform: bool = False  # dbt transform 단계 포함 여부
     dbt_transform: DbtTransformConfig | None = None  # dbt 선택 설정
     save_to_trino: bool = False  # Trino 적재 여부
@@ -216,7 +223,12 @@ class TenantConfig(BaseModel):
                     trino_output=TrinoOutputConfig(
                         target_table="aps_input_wip",
                         target_schema="aps",
-                        key_columns=["project_id", "snapshot_date", "process_step", "product_code"],
+                        key_columns=[
+                            "project_id",
+                            "snapshot_date",
+                            "process_step",
+                            "product_code",
+                        ],
                     ),
                 ),
                 "equipment_event": PipelineAssetConfig(
@@ -238,7 +250,12 @@ class TenantConfig(BaseModel):
                     trino_output=TrinoOutputConfig(
                         target_table="aps_input_cycle_time",
                         target_schema="aps",
-                        key_columns=["project_id", "snapshot_date", "process_step", "product_code"],
+                        key_columns=[
+                            "project_id",
+                            "snapshot_date",
+                            "process_step",
+                            "product_code",
+                        ],
                     ),
                 ),
             },

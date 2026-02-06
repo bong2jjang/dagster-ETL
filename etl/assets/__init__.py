@@ -17,19 +17,19 @@ Assets Module - Legacy Compatibility Layer
 # 레거시 호환성을 위해 기존 Asset 유지
 # 실제 로직은 common/assets/에서 import
 from etl.common.assets.extract import (
-    DEFAULT_EXTRACT_QUERIES,
     DEFAULT_EXTRACT_CONFIGS,
-    get_extract_query,
+    DEFAULT_EXTRACT_QUERIES,
     get_extract_config,
+    get_extract_query,
+)
+from etl.common.assets.load import (
+    DEFAULT_LOAD_CONFIGS,
+    get_load_config,
 )
 from etl.common.assets.transfer import (
     transform_aps_wip_logic,
     transform_cycle_time_logic,
     transform_equipment_utilization_logic,
-)
-from etl.common.assets.load import (
-    DEFAULT_LOAD_CONFIGS,
-    get_load_config,
 )
 
 __all__ = [

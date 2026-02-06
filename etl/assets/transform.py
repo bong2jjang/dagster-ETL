@@ -26,7 +26,6 @@ from etl.partitions.daily import daily_partitions_def
 from etl.resources.s3 import S3Resource
 from etl.utils.logging import ETLLogger
 
-
 logger = ETLLogger("transform")
 
 
@@ -117,9 +116,7 @@ def transform_cycle_time(
     partition_date = context.partition_key
     job_name = "cycle_time"
 
-    logger.log_transform_start(
-        job_name, partition_date, extract_lot_history["s3_path"]
-    )
+    logger.log_transform_start(job_name, partition_date, extract_lot_history["s3_path"])
 
     # 데이터 로드
     lot_df = s3.read_parquet_from_path(extract_lot_history["s3_path"])

@@ -10,18 +10,20 @@ RDB → Transform → Trino → PostgreSQL ETL Pipeline
 - 테넌트별 Code Location 분리 (Dagster UI에서 폴더 구분)
 """
 
+import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 from dagster import Definitions
 
 from etl.config.config_loader import ConfigLoader
-from etl.config.tenant_config import TenantConfig
+from etl.config.tenant_config import TenantConfig as TenantConfig
 from etl.factories.asset_factory import AssetFactory
 from etl.factories.job_factory import JobFactory
-from etl.factories.schedule_factory import ScheduleFactory
 from etl.factories.resource_factory import ResourceFactory, get_shared_s3_config
+from etl.factories.schedule_factory import ScheduleFactory
+
+logger = logging.getLogger(__name__)
 
 
 def build_tenant_definitions(tenant_id: str) -> Definitions:
@@ -42,11 +44,13 @@ def build_tenant_definitions(tenant_id: str) -> Definitions:
     tenants = loader.load_all_tenants(environment)
 
     if tenant_id not in tenants:
-        print(f"Warning: Tenant '{tenant_id}' not found or disabled for {environment}")
+        logger.warning(
+            "Tenant '%s' not found or disabled for %s", tenant_id, environment
+        )
         return Definitions(assets=[], resources={}, jobs=[], schedules=[])
 
     tenant = tenants[tenant_id]
-    print(f"Building definitions for tenant: {tenant_id} ({tenant.name})")
+    logger.info("Building definitions for tenant: %s (%s)", tenant_id, tenant.name)
 
     # 공유 S3 설정
     shared_s3_config = get_shared_s3_config()
@@ -68,7 +72,14 @@ def build_tenant_definitions(tenant_id: str) -> Definitions:
     schedule_factory = ScheduleFactory(tenant, jobs_dict)
     schedules = schedule_factory.create_all_schedules()
 
-    print(f"[{tenant_id}] Loaded: {len(assets)} assets, {len(jobs)} jobs, {len(schedules)} schedules (env={environment})")
+    logger.info(
+        "[%s] Loaded: %d assets, %d jobs, %d schedules (env=%s)",
+        tenant_id,
+        len(assets),
+        len(jobs),
+        len(schedules),
+        environment,
+    )
 
     return Definitions(
         assets=assets,
@@ -86,7 +97,7 @@ def build_all_definitions() -> Definitions:
         DAGSTER_ENVIRONMENT: 실행 환경 (dev, staging, prod)
     """
     environment = os.getenv("DAGSTER_ENVIRONMENT", "dev")
-    print(f"Building all definitions for environment: {environment}")
+    logger.info("Building all definitions for environment: %s", environment)
 
     # 테넌트 설정 로드
     config_dir = Path(__file__).parent / "tenants"
@@ -94,7 +105,7 @@ def build_all_definitions() -> Definitions:
     tenants = loader.load_all_tenants(environment)
 
     if not tenants:
-        print("Warning: No tenants loaded. Check tenant configuration files.")
+        logger.warning("No tenants loaded. Check tenant configuration files.")
         return Definitions(assets=[], resources={}, jobs=[], schedules=[])
 
     all_assets = []
@@ -106,7 +117,7 @@ def build_all_definitions() -> Definitions:
     shared_s3_config = get_shared_s3_config()
 
     for tenant_id, tenant in tenants.items():
-        print(f"Building assets for tenant: {tenant_id}")
+        logger.info("Building assets for tenant: %s", tenant_id)
 
         # 1. Resource 생성
         resource_factory = ResourceFactory(tenant, shared_s3_config)
@@ -129,7 +140,12 @@ def build_all_definitions() -> Definitions:
         tenant_schedules = schedule_factory.create_all_schedules()
         all_schedules.extend(tenant_schedules)
 
-    print(f"Total: {len(tenants)} tenants, {len(all_assets)} assets, {len(all_jobs)} jobs")
+    logger.info(
+        "Total: %d tenants, %d assets, %d jobs",
+        len(tenants),
+        len(all_assets),
+        len(all_jobs),
+    )
 
     return Definitions(
         assets=all_assets,
@@ -152,6 +168,7 @@ def get_available_tenants() -> list[str]:
 # 테넌트별 Definitions (Code Location 분리용)
 # workspace.yaml에서 각각 로드하여 UI에서 테넌트별 폴더로 표시
 # =============================================================================
+
 
 def get_project_01_definitions() -> Definitions:
     """Project 01 테넌트 Definitions"""

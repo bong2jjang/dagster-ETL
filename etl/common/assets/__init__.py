@@ -13,6 +13,6 @@ Common Assets Module - 공용 Asset 로직
 - 테넌트별 커스텀이 필요하면 tenants/{tenant_id}/assets/에서 오버라이드
 """
 
-from etl.common.assets import extract, transfer, load
+from etl.common.assets import extract, load, transfer
 
 __all__ = ["extract", "transfer", "load"]

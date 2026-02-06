@@ -2,9 +2,13 @@
 Schedule Factory - 테넌트별 Schedule 동적 생성
 """
 
+import logging
+
 from dagster import DefaultScheduleStatus, ScheduleDefinition
 
 from etl.config.tenant_config import TenantConfig
+
+logger = logging.getLogger(__name__)
 
 
 class ScheduleFactory:
@@ -20,7 +24,7 @@ class ScheduleFactory:
         self.tenant_id = tenant.id
         self.jobs = jobs
 
-    def create_all_schedules(self) -> list:
+    def create_all_schedules(self) -> list[ScheduleDefinition]:
         """테넌트의 모든 활성화된 Schedule 생성"""
         schedules = []
         jobs_config = self.tenant.jobs
@@ -56,7 +60,10 @@ class ScheduleFactory:
                 schedules.append(schedule)
 
         # Cycle Time Pipeline Schedule
-        if jobs_config.cycle_time_pipeline.enabled and jobs_config.cycle_time_pipeline.schedule:
+        if (
+            jobs_config.cycle_time_pipeline.enabled
+            and jobs_config.cycle_time_pipeline.schedule
+        ):
             schedule = self._create_schedule(
                 job_suffix="cycle_time_pipeline_job",
                 schedule_config=jobs_config.cycle_time_pipeline.schedule,
@@ -66,7 +73,10 @@ class ScheduleFactory:
                 schedules.append(schedule)
 
         # Equipment Pipeline Schedule
-        if jobs_config.equipment_pipeline.enabled and jobs_config.equipment_pipeline.schedule:
+        if (
+            jobs_config.equipment_pipeline.enabled
+            and jobs_config.equipment_pipeline.schedule
+        ):
             schedule = self._create_schedule(
                 job_suffix="equipment_pipeline_job",
                 schedule_config=jobs_config.equipment_pipeline.schedule,
@@ -105,7 +115,7 @@ class ScheduleFactory:
         job = self.jobs.get(job_name)
 
         if not job:
-            print(f"Warning: Job not found for schedule: {job_name}")
+            logger.warning("Job not found for schedule: %s", job_name)
             return None
 
         return ScheduleDefinition(

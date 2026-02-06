@@ -3,12 +3,7 @@ Common Extract Logic - 공용 추출 로직
 테넌트별 커스텀이 필요한 경우 tenants/{tenant}/assets/extract.py에서 오버라이드
 """
 
-from typing import Any
-
-import pandas as pd
-
 from etl.utils.logging import ETLLogger
-
 
 logger = ETLLogger("common.extract")
 
@@ -67,14 +62,13 @@ DEFAULT_EXTRACT_QUERIES = {
             create_datetime,
             update_datetime
         FROM cfg_item_master
-        WHERE 
+        WHERE
             project_id = 'EED70012-E49D-4BA5-AD05-870C338DF39A'
     """,
 }
 
 # 기본 Extract 설정
 DEFAULT_EXTRACT_CONFIGS = {
-
     "lot_history": {
         "source_table": "lot_history",
         "date_column": "DATE(created_at)",
@@ -121,10 +115,13 @@ def get_extract_config(asset_name: str, custom_configs: dict | None = None) -> d
     Returns:
         설정 딕셔너리
     """
-    default_config = DEFAULT_EXTRACT_CONFIGS.get(asset_name, {
-        "source_table": asset_name,
-        "date_column": "DATE(created_at)",
-    })
+    default_config = DEFAULT_EXTRACT_CONFIGS.get(
+        asset_name,
+        {
+            "source_table": asset_name,
+            "date_column": "DATE(created_at)",
+        },
+    )
 
     if custom_configs and asset_name in custom_configs:
         return {**default_config, **custom_configs[asset_name]}

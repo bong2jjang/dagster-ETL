@@ -1,21 +1,21 @@
 """ETL Configuration Module"""
 
+from etl.config.config_loader import ConfigLoader
 from etl.config.tenant_config import (
-    TenantConfig,
+    AssetsConfig,
+    DbtConfig,
+    DbtTransformConfig,
+    JobConfig,
+    JobsConfig,
+    PipelineAssetConfig,
+    PipelineEnvOverride,
+    ScheduleConfig,
     SourceDatabaseConfig,
     StorageConfig,
     TargetDatabaseConfig,
-    JobConfig,
-    JobsConfig,
-    ScheduleConfig,
-    PipelineAssetConfig,
-    PipelineEnvOverride,
+    TenantConfig,
     TrinoOutputConfig,
-    DbtTransformConfig,
-    DbtConfig,
-    AssetsConfig,
 )
-from etl.config.config_loader import ConfigLoader
 from etl.config.tenant_loader import TenantLoader
 
 __all__ = [

@@ -17,14 +17,12 @@ from dagster import (
 )
 
 from etl.common.assets.extract import (
-    DEFAULT_EXTRACT_QUERIES,
     get_extract_query,
 )
 from etl.partitions.daily import daily_partitions_def
 from etl.resources.rdb import RDBResource
 from etl.resources.s3 import S3Resource
 from etl.utils.logging import ETLLogger
-
 
 logger = ETLLogger("extract")
 

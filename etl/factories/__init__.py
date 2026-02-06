@@ -3,8 +3,8 @@
 from etl.factories.asset_factory import AssetFactory
 from etl.factories.dbt_factory import DbtFactory
 from etl.factories.job_factory import JobFactory
-from etl.factories.schedule_factory import ScheduleFactory
 from etl.factories.resource_factory import ResourceFactory
+from etl.factories.schedule_factory import ScheduleFactory
 
 __all__ = [
     "AssetFactory",

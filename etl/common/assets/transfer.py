@@ -8,7 +8,6 @@ import pandas as pd
 from etl.utils.logging import ETLLogger
 from etl.utils.validation import DataValidator
 
-
 logger = ETLLogger("common.transfer")
 
 
@@ -91,9 +90,8 @@ def transform_cycle_time_logic(
     completed_lots["start_time"] = pd.to_datetime(completed_lots["start_time"])
     completed_lots["end_time"] = pd.to_datetime(completed_lots["end_time"])
     completed_lots["cycle_time_minutes"] = (
-        (completed_lots["end_time"] - completed_lots["start_time"]).dt.total_seconds()
-        / 60
-    )
+        completed_lots["end_time"] - completed_lots["start_time"]
+    ).dt.total_seconds() / 60
 
     # 3. 공정/제품별 평균 Cycle Time
     cycle_time_df = (

@@ -7,7 +7,6 @@ from datetime import datetime
 
 from dagster import DailyPartitionsDefinition
 
-
 # Daily Partition 정의 (YYYY-MM-DD 형식)
 daily_partitions_def = DailyPartitionsDefinition(
     start_date="2024-01-01",  # 시작일 (프로젝트에 맞게 조정)

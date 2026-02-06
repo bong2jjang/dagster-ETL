@@ -11,7 +11,6 @@ from dagster import (
 
 from etl.partitions.daily import daily_partitions_def
 
-
 # Extract → Transform → Load 전체 파이프라인 Job
 daily_etl_job = define_asset_job(
     name="daily_etl_job",

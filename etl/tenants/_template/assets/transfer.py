@@ -19,7 +19,6 @@ import pandas as pd
 from etl.utils.logging import ETLLogger
 from etl.utils.validation import DataValidator
 
-
 logger = ETLLogger("template.transfer")
 
 

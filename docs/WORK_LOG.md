@@ -124,6 +124,52 @@ etl/
 
 ### 2026-02-06
 
+#### 코딩 컨벤션 기반 코드베이스 개선
+- **시간**: 2026-02-06
+- **목적**: `.claude/CLAUDE.md` 코딩 컨벤션을 기준으로 기존 코드 검사 및 수정
+- **작업 내용**:
+  1. **CLAUDE.md 파일명 오류 수정**: 실제 파일명과 불일치하는 경로 수정 (rdb_resource.py→rdb.py 등)
+  2. **print() → logging 교체 (16건)**: 모든 print() 호출을 `logging.getLogger(__name__)` 기반으로 교체
+     - `etl/__init__.py` (7건)
+     - `etl/config/config_loader.py` (4건)
+     - `etl/config/tenant_loader.py` (4건)
+     - `etl/factories/dbt_factory.py` (1건)
+     - `etl/factories/schedule_factory.py` (1건)
+  3. **typing import 수정**: `from typing import Optional` 제거 (미사용)
+  4. **제네릭 반환 타입 구체화**: `list` → `list[JobDefinition]`, `list[ScheduleDefinition]`, `dict[str, Any]`
+  5. **ruff 설정 현대화**: `pyproject.toml`의 `select/ignore` → `lint.select/lint.ignore` 섹션 이동
+  6. **ruff auto-fix 적용**: 39건 자동 수정 (미사용 import, Callable 임포트 경로 등)
+  7. **기타**: trailing whitespace, sorted(list()) → sorted(), E402 import 순서 수정
+- **검증 결과**:
+  - `ruff check etl/`: All checks passed
+  - `ruff format --check etl/`: 46 files already formatted
+  - `dagster definitions validate -m etl.project_01`: 성공
+  - `dagster definitions validate -m etl.project_02`: 성공
+- **상태**: 완료
+
+#### .claude 디렉토리 구성
+- **시간**: 2026-02-06
+- **목적**: Claude Code 연동을 위한 프로젝트 설정 파일 구성 (ref_claude 참조 파일 기반)
+- **작업 내용**:
+  1. **CLAUDE.md**: 프로젝트 구조, 코딩 컨벤션, 개발 워크플로우, 환경변수 규칙 종합 가이드
+  2. **settings.json**: 권한 허용/차단 목록 (gh, git, pytest, ruff, dagster, dbt 등)
+  3. **commands/**: 슬래시 커맨드 6개
+     - `write_pr_summary.md` - PR 요약 작성
+     - `gh_issue_solve.md` - GitHub 이슈 분석 및 해결
+     - `dg_troubleshoot_run.md` - Dagster 실행 오류 진단
+     - `add_tenant.md` - 신규 테넌트 추가
+     - `add_pipeline.md` - 파이프라인 추가
+     - `enforce_standards.md` - 코드 표준 검사
+  4. **agents/**: 에이전트 정의 2개
+     - `code-standards-enforcer.md` - 코드 표준 감사관
+     - `etl-expert.md` - ETL 파이프라인 전문가
+- **관련 파일**:
+  - `.claude/CLAUDE.md` (신규)
+  - `.claude/settings.json` (신규)
+  - `.claude/commands/*.md` (신규 6개)
+  - `.claude/agents/*.md` (신규 2개)
+- **상태**: 완료
+
 #### dbt 통합 (Dagster Orchestrator + dbt Transformer)
 - **시간**: 2026-02-06
 - **목적**: dbt를 Transform-only 레이어로 통합, Python extract + dbt SQL transform 하이브리드 구성

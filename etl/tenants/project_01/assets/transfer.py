@@ -8,7 +8,6 @@ import pandas as pd
 from etl.utils.logging import ETLLogger
 from etl.utils.validation import DataValidator
 
-
 logger = ETLLogger("project_01.transfer")
 
 
@@ -42,19 +41,27 @@ def transform_aps_wip_logic(
     if has_priority:
         df_active["is_high_priority"] = (df_active["priority"] == "HIGH").astype(int)
 
-    wip_df = df_active.groupby(group_cols).agg(
-        wip_qty=("quantity", "sum"),
-        lot_count=("lot_id", "nunique"),
-        avg_qty_per_lot=("quantity", "mean"),
-    ).reset_index()
+    wip_df = (
+        df_active.groupby(group_cols)
+        .agg(
+            wip_qty=("quantity", "sum"),
+            lot_count=("lot_id", "nunique"),
+            avg_qty_per_lot=("quantity", "mean"),
+        )
+        .reset_index()
+    )
 
     # HIGH priority 카운트 추가
     if has_priority:
-        priority_df = df_active.groupby(group_cols).agg(
-            high_priority_count=("is_high_priority", "sum")
-        ).reset_index()
+        priority_df = (
+            df_active.groupby(group_cols)
+            .agg(high_priority_count=("is_high_priority", "sum"))
+            .reset_index()
+        )
         wip_df = wip_df.merge(priority_df, on=group_cols, how="left")
-        wip_df["high_priority_count"] = wip_df["high_priority_count"].fillna(0).astype(int)
+        wip_df["high_priority_count"] = (
+            wip_df["high_priority_count"].fillna(0).astype(int)
+        )
 
     # 4. 메타데이터 추가
     wip_df["snapshot_date"] = partition_date

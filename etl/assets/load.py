@@ -23,7 +23,6 @@ from etl.resources.s3 import S3Resource
 from etl.resources.trino import TrinoResource
 from etl.utils.logging import ETLLogger
 
-
 logger = ETLLogger("load")
 
 
@@ -84,7 +83,9 @@ def load_aps_wip(
             "inserted": result["inserted"],
         },
         metadata={
-            "target_table": MetadataValue.text(f"postgresql.{target_schema}.{target_table}"),
+            "target_table": MetadataValue.text(
+                f"postgresql.{target_schema}.{target_table}"
+            ),
             "deleted_rows": MetadataValue.int(result["deleted"]),
             "inserted_rows": MetadataValue.int(result["inserted"]),
             "partition_date": MetadataValue.text(partition_date),
@@ -140,7 +141,9 @@ def load_cycle_time(
             "row_count": row_count,
         },
         metadata={
-            "target_table": MetadataValue.text(f"postgresql.{target_schema}.{target_table}"),
+            "target_table": MetadataValue.text(
+                f"postgresql.{target_schema}.{target_table}"
+            ),
             "deleted_rows": MetadataValue.int(result["deleted"]),
             "inserted_rows": MetadataValue.int(result["inserted"]),
             "partition_date": MetadataValue.text(partition_date),
@@ -151,7 +154,9 @@ def load_cycle_time(
 @asset(
     partitions_def=daily_partitions_def,
     ins={
-        "transform_equipment_utilization": AssetIn(key="transform_equipment_utilization")
+        "transform_equipment_utilization": AssetIn(
+            key="transform_equipment_utilization"
+        )
     },
     group_name="load",
     description="설비 가동률 데이터 PostgreSQL 적재 [Legacy]",
@@ -198,7 +203,9 @@ def load_equipment_utilization(
             "row_count": row_count,
         },
         metadata={
-            "target_table": MetadataValue.text(f"postgresql.{target_schema}.{target_table}"),
+            "target_table": MetadataValue.text(
+                f"postgresql.{target_schema}.{target_table}"
+            ),
             "deleted_rows": MetadataValue.int(result["deleted"]),
             "inserted_rows": MetadataValue.int(result["inserted"]),
             "partition_date": MetadataValue.text(partition_date),

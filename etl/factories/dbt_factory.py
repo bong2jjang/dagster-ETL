@@ -6,6 +6,7 @@ dagster-dbt 통합:
 - DbtFactory: dbt 프로젝트 경로 관리, DbtCliResource/Asset 생성
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,8 @@ from dagster_dbt import (
 )
 
 from etl.config.tenant_config import TenantConfig
+
+logger = logging.getLogger(__name__)
 
 
 class TenantDbtTranslator(DagsterDbtTranslator):
@@ -116,15 +119,16 @@ class DbtFactory:
         manifest_path = dbt_project.manifest_path
 
         if not manifest_path.exists():
-            print(
-                f"[{self.tenant_id}] dbt manifest not found at {manifest_path}. "
-                f"Run 'dbt parse --profiles-dir {project_dir}' to generate it."
+            logger.warning(
+                "[%s] dbt manifest not found at %s. Run 'dbt parse --profiles-dir %s' to generate it.",
+                self.tenant_id,
+                manifest_path,
+                project_dir,
             )
             return []
 
         translator = TenantDbtTranslator(self.tenant_id)
         tenant_id = self.tenant_id
-        tenant_tags = self.tenant.tags
 
         # dbt select/exclude 설정 수집
         select, exclude = self._build_dbt_selection()
@@ -151,7 +155,7 @@ class DbtFactory:
         selects = []
         excludes = []
 
-        for name, pipeline_config in self.tenant.assets.pipelines.items():
+        for _name, pipeline_config in self.tenant.assets.pipelines.items():
             if pipeline_config.has_dbt_transform and pipeline_config.dbt_transform:
                 dbt_tf = pipeline_config.dbt_transform
                 if dbt_tf.dbt_select:

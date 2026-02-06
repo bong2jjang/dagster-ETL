@@ -136,11 +136,17 @@ class S3Resource(ConfigurableResource):
         Returns:
             S3 key 경로
         """
-        base = self.tenant_base_path if self.tenant_base_path else f"project_id={tenant_id}"
+        base = (
+            self.tenant_base_path
+            if self.tenant_base_path
+            else f"project_id={tenant_id}"
+        )
 
         if partition_date:
             date_formatted = partition_date.replace("-", "")
-            return f"{base}/{stage}/job_name={job_name}/date={date_formatted}/{filename}"
+            return (
+                f"{base}/{stage}/job_name={job_name}/date={date_formatted}/{filename}"
+            )
         else:
             return f"{base}/{stage}/job_name={job_name}/latest/{filename}"
 
@@ -244,7 +250,7 @@ class S3Resource(ConfigurableResource):
                     if part.startswith("date="):
                         partitions.add(part.replace("date=", ""))
 
-        return sorted(list(partitions))
+        return sorted(partitions)
 
     def read_parquet(
         self,
@@ -346,4 +352,4 @@ class S3Resource(ConfigurableResource):
                     if part.startswith("date="):
                         partitions.add(part.replace("date=", ""))
 
-        return sorted(list(partitions))
+        return sorted(partitions)

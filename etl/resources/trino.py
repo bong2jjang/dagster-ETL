@@ -2,14 +2,15 @@
 Trino Resource - Query Engine for Data Loading
 """
 
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any
 
 import pandas as pd
 from dagster import ConfigurableResource, InitResourceContext
 from pydantic import Field
-from trino.dbapi import connect
 from trino.auth import BasicAuthentication
+from trino.dbapi import connect
 
 
 class TrinoResource(ConfigurableResource):
@@ -210,7 +211,9 @@ class TrinoResource(ConfigurableResource):
                         else:
                             conditions.append(f"{key_col} = {val}")
 
-                    delete_sql = f"DELETE FROM {full_table} WHERE {' AND '.join(conditions)}"
+                    delete_sql = (
+                        f"DELETE FROM {full_table} WHERE {' AND '.join(conditions)}"
+                    )
                     cursor.execute(delete_sql)
                     deleted += cursor.rowcount if cursor.rowcount else 0
 
@@ -229,9 +232,7 @@ class TrinoResource(ConfigurableResource):
         with self.get_cursor() as cursor:
             cursor.execute(f"DELETE FROM {full_table}")
 
-    def table_exists(
-        self, catalog: str, schema: str, table: str
-    ) -> bool:
+    def table_exists(self, catalog: str, schema: str, table: str) -> bool:
         """테이블 존재 여부 확인"""
         query = f"""
             SELECT COUNT(*)

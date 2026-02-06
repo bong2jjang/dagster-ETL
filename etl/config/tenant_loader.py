@@ -4,27 +4,28 @@ Tenant Loader - 테넌트별 커스텀 코드 로더
 """
 
 import importlib
+import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
 from etl.common.assets.extract import (
     DEFAULT_EXTRACT_QUERIES,
-    DEFAULT_EXTRACT_CONFIGS,
-    get_extract_query,
     get_extract_config,
+)
+from etl.common.assets.load import (
+    get_load_config,
 )
 from etl.common.assets.transfer import (
     transform_aps_wip_logic,
     transform_cycle_time_logic,
     transform_equipment_utilization_logic,
 )
-from etl.common.assets.load import (
-    DEFAULT_LOAD_CONFIGS,
-    get_load_config,
-)
+
+logger = logging.getLogger(__name__)
 
 
 class TenantLoader:
@@ -58,12 +59,12 @@ class TenantLoader:
         self._loaded = True
 
         if not self.tenant_dir.exists():
-            print(f"Tenant directory not found: {self.tenant_dir}")
+            logger.warning("Tenant directory not found: %s", self.tenant_dir)
             return None
 
         init_file = self.tenant_dir / "__init__.py"
         if not init_file.exists():
-            print(f"Tenant __init__.py not found: {init_file}")
+            logger.warning("Tenant __init__.py not found: %s", init_file)
             return None
 
         try:
@@ -78,7 +79,7 @@ class TenantLoader:
             return self._custom_module
 
         except Exception as e:
-            print(f"Failed to load tenant module {self.tenant_id}: {e}")
+            logger.warning("Failed to load tenant module %s: %s", self.tenant_id, e)
             return None
 
     def get_extract_queries(self) -> dict[str, str]:
@@ -129,13 +130,20 @@ class TenantLoader:
 
         # 커스텀 함수 확인 (CUSTOM_TRANSFER_FUNCTIONS 우선)
         if module:
-            for attr_name in ["CUSTOM_TRANSFER_FUNCTIONS", "CUSTOM_TRANSFORM_FUNCTIONS"]:
+            for attr_name in [
+                "CUSTOM_TRANSFER_FUNCTIONS",
+                "CUSTOM_TRANSFORM_FUNCTIONS",
+            ]:
                 if hasattr(module, attr_name):
                     custom_functions = getattr(module, attr_name)
                     if custom_functions and asset_name in custom_functions:
                         custom_fn = custom_functions[asset_name]
                         if custom_fn is not None:
-                            print(f"[{self.tenant_id}] Using custom transfer for {asset_name}")
+                            logger.info(
+                                "[%s] Using custom transfer for %s",
+                                self.tenant_id,
+                                asset_name,
+                            )
                             return custom_fn
 
         # 공용 함수 반환
@@ -179,11 +187,13 @@ class TenantLoader:
         if not module:
             return False
 
-        has_custom = any([
-            getattr(module, "CUSTOM_EXTRACT_QUERIES", None),
-            getattr(module, "CUSTOM_TRANSFER_FUNCTIONS", None),
-            getattr(module, "CUSTOM_TRANSFORM_FUNCTIONS", None),
-            getattr(module, "CUSTOM_LOAD_CONFIGS", None),
-        ])
+        has_custom = any(
+            [
+                getattr(module, "CUSTOM_EXTRACT_QUERIES", None),
+                getattr(module, "CUSTOM_TRANSFER_FUNCTIONS", None),
+                getattr(module, "CUSTOM_TRANSFORM_FUNCTIONS", None),
+                getattr(module, "CUSTOM_LOAD_CONFIGS", None),
+            ]
+        )
 
         return has_custom

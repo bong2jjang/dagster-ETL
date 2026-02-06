@@ -2,8 +2,9 @@
 Data Validation Utilities
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
@@ -102,7 +103,9 @@ class DataValidator:
                 is_valid=is_valid,
                 rule_name="range",
                 column=column,
-                message=f"Found {failed_count} out of range values" if not is_valid else "",
+                message=f"Found {failed_count} out of range values"
+                if not is_valid
+                else "",
                 failed_count=int(failed_count),
                 failed_samples=col_data[failed_mask].head(5).tolist(),
             )
@@ -128,12 +131,16 @@ class DataValidator:
                 is_valid=is_valid,
                 rule_name="type",
                 column=column,
-                message=f"Expected {expected_type}, got {actual_type}" if not is_valid else "",
+                message=f"Expected {expected_type}, got {actual_type}"
+                if not is_valid
+                else "",
             )
         )
         return self
 
-    def check_values_in(self, column: str, allowed_values: list[Any]) -> "DataValidator":
+    def check_values_in(
+        self, column: str, allowed_values: list[Any]
+    ) -> "DataValidator":
         """허용 값 체크"""
         invalid_mask = ~self.df[column].isin(allowed_values) & self.df[column].notna()
         failed_count = invalid_mask.sum()
@@ -164,7 +171,9 @@ class DataValidator:
                 is_valid=is_valid,
                 rule_name="regex",
                 column=column,
-                message=f"Found {failed_count} values not matching pattern" if not is_valid else "",
+                message=f"Found {failed_count} values not matching pattern"
+                if not is_valid
+                else "",
                 failed_count=int(failed_count),
                 failed_samples=self.df.loc[failed_mask, column].head(5).tolist(),
             )

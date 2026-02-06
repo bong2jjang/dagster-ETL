@@ -8,7 +8,8 @@ PipelineAssetConfig 기반으로 extract → transfer → load 파이프라인 �
 - load (output_save): Trino에 적재 (선택, save_to_trino=True)
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import pandas as pd
 from dagster import (
@@ -110,7 +111,9 @@ class AssetFactory:
             # 파티션 날짜 결정
             partition_date = context.partition_key if partitions_def else None
 
-            logger.log_extract_start(full_asset_name, partition_date or "latest", source_table)
+            logger.log_extract_start(
+                full_asset_name, partition_date or "latest", source_table
+            )
 
             # 데이터 추출
             if date_column and partition_date:
@@ -136,7 +139,12 @@ class AssetFactory:
             else:
                 s3_path = None
 
-            logger.log_extract_complete(full_asset_name, partition_date or "latest", row_count, s3_path or "N/A (S3 save disabled)")
+            logger.log_extract_complete(
+                full_asset_name,
+                partition_date or "latest",
+                row_count,
+                s3_path or "N/A (S3 save disabled)",
+            )
 
             # 메타데이터 구성
             metadata = {
@@ -199,10 +207,7 @@ class AssetFactory:
 
         # 입력 의존성 설정
         input_assets = config.transfer_inputs or [asset_name]
-        ins = {
-            name: AssetIn(key=[tenant_id, "extract", name])
-            for name in input_assets
-        }
+        ins = {name: AssetIn(key=[tenant_id, "extract", name]) for name in input_assets}
 
         @asset(
             name=asset_name,
@@ -236,7 +241,9 @@ class AssetFactory:
                 total_input_rows += len(df)
 
             first_input = list(inputs.values())[0]
-            logger.log_transform_start(full_asset_name, partition_date, first_input["s3_path"])
+            logger.log_transform_start(
+                full_asset_name, partition_date, first_input["s3_path"]
+            )
 
             # 변환 실행
             output_df = transfer_fn(input_dfs, partition_date, tenant_id)
@@ -306,7 +313,11 @@ class AssetFactory:
             name=asset_name,
             key_prefix=[tenant_id, "load"],
             partitions_def=partitions_def,
-            ins={input_asset_name: AssetIn(key=[tenant_id, input_stage, input_asset_name])},
+            ins={
+                input_asset_name: AssetIn(
+                    key=[tenant_id, input_stage, input_asset_name]
+                )
+            },
             group_name=tenant_id,
             description=f"[{tenant_name}] Load {asset_name} to {target_schema}.{target_table}",
             compute_kind="trino",
@@ -345,7 +356,9 @@ class AssetFactory:
             )
 
             row_count = result["inserted"]
-            logger.log_load_complete(full_asset_name, partition_date, row_count, target_table)
+            logger.log_load_complete(
+                full_asset_name, partition_date, row_count, target_table
+            )
 
             return Output(
                 value={
@@ -356,7 +369,9 @@ class AssetFactory:
                     "inserted": result["inserted"],
                 },
                 metadata={
-                    "target_table": MetadataValue.text(f"{target_schema}.{target_table}"),
+                    "target_table": MetadataValue.text(
+                        f"{target_schema}.{target_table}"
+                    ),
                     "deleted_rows": MetadataValue.int(result["deleted"]),
                     "inserted_rows": MetadataValue.int(result["inserted"]),
                     "partition_date": MetadataValue.text(partition_date),

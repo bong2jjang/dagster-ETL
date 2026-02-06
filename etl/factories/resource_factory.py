@@ -3,6 +3,7 @@ Resource Factory - 테넌트별 Resource 동적 생성
 """
 
 import os
+from typing import Any
 
 from etl.config.tenant_config import TenantConfig
 from etl.factories.dbt_factory import DbtFactory
@@ -24,7 +25,7 @@ class ResourceFactory:
         self.tenant_id = tenant.id
         self.shared_s3_config = shared_s3_config or {}
 
-    def create_all_resources(self) -> dict:
+    def create_all_resources(self) -> dict[str, Any]:
         """테넌트의 모든 Resource 생성"""
         resources = {
             "rdb": self._create_rdb_resource(),
@@ -59,7 +60,9 @@ class ResourceFactory:
         return S3Resource(
             endpoint_url=self.shared_s3_config.get("endpoint_url", ""),
             aws_access_key_id=self.shared_s3_config.get("aws_access_key_id", ""),
-            aws_secret_access_key=self.shared_s3_config.get("aws_secret_access_key", ""),
+            aws_secret_access_key=self.shared_s3_config.get(
+                "aws_secret_access_key", ""
+            ),
             region_name=self.shared_s3_config.get("region_name", "ap-northeast-2"),
             bucket_name=storage_config.bucket,
             tenant_base_path=storage_config.base_path,

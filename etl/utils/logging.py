@@ -4,7 +4,6 @@ ETL Logging Utilities
 
 import logging
 import sys
-from datetime import datetime
 from typing import Any
 
 from dagster import get_dagster_logger

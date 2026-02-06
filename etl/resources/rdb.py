@@ -2,8 +2,9 @@
 RDB Resource - Source Database Connection
 """
 
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any
 
 import pandas as pd
 from dagster import ConfigurableResource, InitResourceContext

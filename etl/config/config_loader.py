@@ -7,6 +7,7 @@ Configuration Loader
 2. 파일 기반 (레거시): tenants/tenant_{id}.yaml
 """
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -15,6 +16,8 @@ from typing import Any
 import yaml
 
 from etl.config.tenant_config import TenantConfig
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigLoader:
@@ -64,7 +67,7 @@ class ConfigLoader:
         Returns:
             TenantConfig 인스턴스
         """
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             raw_config = yaml.safe_load(f)
 
         # "tenant" 키 아래의 설정 추출
@@ -114,9 +117,7 @@ class ConfigLoader:
 
         return configs
 
-    def load_all_tenants(
-        self, environment: str = "prod"
-    ) -> dict[str, TenantConfig]:
+    def load_all_tenants(self, environment: str = "prod") -> dict[str, TenantConfig]:
         """
         모든 테넌트 설정 로드 (환경별 필터링)
 
@@ -129,7 +130,7 @@ class ConfigLoader:
         tenants: dict[str, TenantConfig] = {}
 
         if not self.config_dir.exists():
-            print(f"Warning: Config directory not found: {self.config_dir}")
+            logger.warning("Config directory not found: %s", self.config_dir)
             return tenants
 
         for tenant_id, config_path in self._find_tenant_configs():
@@ -141,14 +142,16 @@ class ConfigLoader:
                     tenants[tenant.id] = tenant
                     has_custom = self._check_custom_code(tenant_id)
                     custom_flag = " [custom]" if has_custom else ""
-                    print(f"Loaded tenant: {tenant.id} ({tenant.name}){custom_flag}")
+                    logger.info(
+                        "Loaded tenant: %s (%s)%s", tenant.id, tenant.name, custom_flag
+                    )
                 else:
-                    print(
-                        f"Skipped tenant: {tenant.id} (disabled for {environment})"
+                    logger.info(
+                        "Skipped tenant: %s (disabled for %s)", tenant.id, environment
                     )
 
             except Exception as e:
-                print(f"Warning: Failed to load tenant config {config_path}: {e}")
+                logger.warning("Failed to load tenant config %s: %s", config_path, e)
 
         self._tenants = tenants
         return tenants
@@ -173,7 +176,10 @@ class ConfigLoader:
         init_file = tenant_dir / "__init__.py"
         if init_file.exists():
             content = init_file.read_text(encoding="utf-8")
-            if "CUSTOM_" in content and "= None" not in content.split("CUSTOM_")[1][:50]:
+            if (
+                "CUSTOM_" in content
+                and "= None" not in content.split("CUSTOM_")[1][:50]
+            ):
                 return True
 
         return False
