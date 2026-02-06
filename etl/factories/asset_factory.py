@@ -24,6 +24,7 @@ from dagster import (
 
 from etl.config.tenant_config import PipelineAssetConfig, TenantConfig
 from etl.config.tenant_loader import TenantLoader
+from etl.factories.dbt_factory import DbtFactory
 from etl.partitions.daily import daily_partitions_def
 from etl.resources.rdb import RDBResource
 from etl.resources.s3 import S3Resource
@@ -40,6 +41,7 @@ class AssetFactory:
         self.environment = environment
         self.logger = ETLLogger(f"factory.{self.tenant_id}")
         self.tenant_loader = TenantLoader(tenant.id)
+        self.dbt_factory = DbtFactory(tenant) if tenant.dbt.enabled else None
 
     def _get_pipeline_configs(self) -> dict[str, PipelineAssetConfig]:
         """테넌트의 파이프라인 설정 조회 (YAML > 기본값), 환경별 오버라이드 적용"""
@@ -391,5 +393,10 @@ class AssetFactory:
             # 3. Load (선택)
             if config.save_to_trino and config.trino_output:
                 assets.append(self.create_load_asset(name, config))
+
+        # 4. dbt Assets (dbt enabled인 경우)
+        if self.dbt_factory:
+            dbt_assets = self.dbt_factory.create_dbt_assets()
+            assets.extend(dbt_assets)
 
         return assets

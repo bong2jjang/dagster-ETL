@@ -11,6 +11,8 @@ from etl.config.tenant_config import (
     PipelineAssetConfig,
     PipelineEnvOverride,
     TrinoOutputConfig,
+    DbtTransformConfig,
+    DbtConfig,
     AssetsConfig,
 )
 from etl.config.config_loader import ConfigLoader
@@ -27,6 +29,8 @@ __all__ = [
     "PipelineAssetConfig",
     "PipelineEnvOverride",
     "TrinoOutputConfig",
+    "DbtTransformConfig",
+    "DbtConfig",
     "AssetsConfig",
     "ConfigLoader",
     "TenantLoader",

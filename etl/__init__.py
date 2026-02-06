@@ -158,6 +158,11 @@ def get_project_01_definitions() -> Definitions:
     return build_tenant_definitions("project_01")
 
 
+def get_project_02_definitions() -> Definitions:
+    """Project 02 테넌트 Definitions"""
+    return build_tenant_definitions("project_02")
+
+
 def get_default_definitions() -> Definitions:
     """Default 테넌트 Definitions"""
     return build_tenant_definitions("default")

@@ -74,7 +74,13 @@ dmypy.json
 # Docker
 docker/data/
 
+# dbt
+**/dbt/target/
+**/dbt/dbt_packages/
+**/dbt/logs/
+
 # Temporary files
 tmp/
 temp/
 *.tmp
+nul

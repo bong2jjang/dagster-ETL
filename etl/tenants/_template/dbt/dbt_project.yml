@@ -1,0 +1,29 @@
+# =============================================================================
+# {TENANT_ID} dbt Project (템플릿)
+# 새 테넌트 생성 시 이 파일을 복사하여 수정하세요.
+# =============================================================================
+name: "{TENANT_ID}_dbt"
+version: '1.0.0'
+config-version: 2
+
+profile: '{TENANT_ID}'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  "{TENANT_ID}_dbt":
+    staging:
+      +materialized: view
+      +schema: staging
+    transform:
+      +materialized: table
+      +schema: analytics

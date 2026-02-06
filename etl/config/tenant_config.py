@@ -72,6 +72,7 @@ class JobsConfig(BaseModel):
     wip_pipeline: JobConfig = Field(default_factory=JobConfig)
     cycle_time_pipeline: JobConfig = Field(default_factory=JobConfig)
     equipment_pipeline: JobConfig = Field(default_factory=JobConfig)
+    dbt_transform: JobConfig = Field(default_factory=lambda: JobConfig(enabled=False))
 
 
 class TrinoOutputConfig(BaseModel):
@@ -80,6 +81,22 @@ class TrinoOutputConfig(BaseModel):
     target_table: str
     target_schema: str = "aps"
     key_columns: list[str] = Field(default_factory=list)
+
+
+class DbtTransformConfig(BaseModel):
+    """dbt Transform 선택 설정"""
+
+    dbt_select: str = ""  # dbt 모델 선택 (e.g., "stg_cfg_item_master tfm_item_master_enriched")
+    dbt_exclude: str = ""  # dbt 모델 제외 (선택)
+
+
+class DbtConfig(BaseModel):
+    """테넌트 dbt 프로젝트 설정"""
+
+    enabled: bool = False
+    project_dir: str | None = None  # 커스텀 경로 (기본: tenants/{id}/dbt)
+    target: str = "dev"  # dbt target profile name
+    target_schema: str = "analytics"  # dbt 출력 스키마
 
 
 class PipelineEnvOverride(BaseModel):
@@ -92,18 +109,24 @@ class PipelineEnvOverride(BaseModel):
 class PipelineAssetConfig(BaseModel):
     """개별 파이프라인 Asset 설정
 
-    파이프라인 흐름: input_load → (optional) transfer → (optional) output_save
+    파이프라인 흐름: extract → (optional) transfer/dbt → (optional) load
+
+    Transform 옵션:
+    - has_transfer: Python 기반 transfer (기존)
+    - has_dbt_transform: dbt SQL 기반 transform (신규)
+    - 둘 다 사용 가능 (하이브리드)
 
     environments 필드로 환경별 save_to_s3/save_to_trino를 오버라이드할 수 있음.
-    예) dev에서는 save_to_s3: false, prod에서는 save_to_s3: true
     """
 
     source_table: str
     query: str | None = None
     date_column: str | None = None  # None이면 파티션 없음 (마스터 데이터)
     save_to_s3: bool = True  # Extract 결과 S3 Parquet 저장 여부
-    has_transfer: bool = False  # transfer 단계 포함 여부
+    has_transfer: bool = False  # Python transfer 단계 포함 여부
     transfer_inputs: list[str] | None = None  # transfer의 입력 asset 목록 (None이면 자기 자신)
+    has_dbt_transform: bool = False  # dbt transform 단계 포함 여부
+    dbt_transform: DbtTransformConfig | None = None  # dbt 선택 설정
     save_to_trino: bool = False  # Trino 적재 여부
     trino_output: TrinoOutputConfig | None = None
     environments: dict[str, PipelineEnvOverride] | None = None
@@ -157,6 +180,7 @@ class TenantConfig(BaseModel):
     target_database: TargetDatabaseConfig = Field(default_factory=TargetDatabaseConfig)
     jobs: JobsConfig = Field(default_factory=JobsConfig)
     assets: AssetsConfig = Field(default_factory=AssetsConfig)
+    dbt: DbtConfig = Field(default_factory=DbtConfig)
     tags: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("id")

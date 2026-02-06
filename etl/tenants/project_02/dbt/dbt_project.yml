@@ -1,0 +1,28 @@
+# =============================================================================
+# Project 02 dbt Project
+# =============================================================================
+name: project_02_dbt
+version: '1.0.0'
+config-version: 2
+
+profile: 'project_02'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  project_02_dbt:
+    staging:
+      +materialized: view
+      +schema: staging
+    transform:
+      +materialized: table
+      +schema: analytics

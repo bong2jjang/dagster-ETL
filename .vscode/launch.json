@@ -9,6 +9,7 @@
             "args": [
                 "dev",
                 "-m", "etl.project_01",
+                "-m", "etl.project_02",
                 "-m", "etl.default",
                 "-p", "3000"
             ],
@@ -48,6 +49,7 @@
             "args": [
                 "dev",
                 "-m", "etl.project_01",
+                "-m", "etl.project_02",
                 "-m", "etl.default",
                 "-p", "3001"
             ],

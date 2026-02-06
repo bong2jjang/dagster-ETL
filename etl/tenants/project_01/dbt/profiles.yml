@@ -1,0 +1,25 @@
+# =============================================================================
+# Project 01 dbt Profiles (환경변수 기반)
+# 기존 테넌트 환경변수를 재사용
+# =============================================================================
+project_01:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('PROJECT_01_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('PROJECT_01_DB_PORT', '5432') | int }}"
+      user: "{{ env_var('PROJECT_01_DB_USER', 'mzcadm') }}"
+      password: "{{ env_var('PROJECT_01_DB_PASSWORD', '') }}"
+      dbname: "{{ env_var('PROJECT_01_DB_NAME', 'mzc_aps') }}"
+      schema: public
+      threads: 4
+    prod:
+      type: postgres
+      host: "{{ env_var('PROJECT_01_DB_HOST') }}"
+      port: "{{ env_var('PROJECT_01_DB_PORT', '5432') | int }}"
+      user: "{{ env_var('PROJECT_01_DB_USER') }}"
+      password: "{{ env_var('PROJECT_01_DB_PASSWORD') }}"
+      dbname: "{{ env_var('PROJECT_01_DB_NAME') }}"
+      schema: public
+      threads: 4

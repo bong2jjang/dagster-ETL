@@ -1,0 +1,16 @@
+# =============================================================================
+# {TENANT_ID} dbt Profiles (템플릿)
+# 환경변수 이름을 테넌트에 맞게 수정하세요.
+# =============================================================================
+"{TENANT_ID}":
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('{TENANT_ID_UPPER}_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('{TENANT_ID_UPPER}_DB_PORT', '5432') | int }}"
+      user: "{{ env_var('{TENANT_ID_UPPER}_DB_USER', 'postgres') }}"
+      password: "{{ env_var('{TENANT_ID_UPPER}_DB_PASSWORD', '') }}"
+      dbname: "{{ env_var('{TENANT_ID_UPPER}_DB_NAME', 'mydb') }}"
+      schema: public
+      threads: 4

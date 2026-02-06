@@ -95,6 +95,12 @@ class JobFactory:
             if job:
                 jobs.append(job)
 
+        # dbt Transform Job
+        if jobs_config.dbt_transform.enabled:
+            job = self._create_dbt_transform_job()
+            if job:
+                jobs.append(job)
+
         return jobs
 
     def _create_daily_etl_job(self, partitioned_pipelines: dict[str, PipelineAssetConfig]):
@@ -175,6 +181,19 @@ class JobFactory:
             tags={
                 "tenant_id": self.tenant_id,
                 "pipeline": job_name_suffix.replace("_", "-"),
+                **self.tenant.tags,
+            },
+        )
+
+    def _create_dbt_transform_job(self):
+        """dbt Transform Job 생성 (tenant_id/dbt/* 프리픽스 기반)"""
+        return define_asset_job(
+            name=f"{self.tenant_id}_dbt_transform_job",
+            description=f"[{self.tenant.name}] dbt Transform Pipeline",
+            selection=AssetSelection.key_prefixes([self.tenant_id, "dbt"]),
+            tags={
+                "tenant_id": self.tenant_id,
+                "pipeline": "dbt-transform",
                 **self.tenant.tags,
             },
         )

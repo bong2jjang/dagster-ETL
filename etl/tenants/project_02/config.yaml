@@ -1,13 +1,13 @@
 # =============================================================================
-# Project 01 테넌트 설정 (OnPrem APS - mzc_aps)
+# Project 02 테넌트 설정
 # =============================================================================
 
 tenant:
-  id: "project_01"
-  name: "Project 01"
+  id: "project_02"
+  name: "Project 02"
   enabled: true
 
-  use_custom_code: true
+  use_custom_code: false
 
   environments:
     dev:
@@ -18,16 +18,16 @@ tenant:
       enabled: false
 
   source_database:
-    host: "${PROJECT_01_DB_HOST:localhost}"
-    port: "${PROJECT_01_DB_PORT:5432}"
-    database: "${PROJECT_01_DB_NAME:mzc_aps}"
-    username: "${PROJECT_01_DB_USER:mzcadm}"
-    password: "${PROJECT_01_DB_PASSWORD:}"
+    host: "${PROJECT_02_DB_HOST:localhost}"
+    port: "${PROJECT_02_DB_PORT:5432}"
+    database: "${PROJECT_02_DB_NAME:mzc_aps}"
+    username: "${PROJECT_02_DB_USER:mzcadm}"
+    password: "${PROJECT_02_DB_PASSWORD:}"
     schema: "public"
 
   storage:
     bucket: "${S3_BUCKET_NAME:data-lake}"
-    base_path: "project_id=project_01"
+    base_path: "project_id=project_02"
 
   target_database:
     trino_host: "${TRINO_HOST:192.168.1.250}"
@@ -57,9 +57,9 @@ tenant:
       # ----- 마스터 데이터 (파티션 없음) -----
       cfg_item_master:
         source_table: cfg_item_master
-        save_to_s3: false         # dev: S3 저장 안 함
-        save_to_trino: false      # dev: Trino 적재 안 함
-        has_dbt_transform: true   # dbt SQL 변환 사용
+        save_to_s3: false
+        save_to_trino: false
+        has_dbt_transform: true
         dbt_transform:
           dbt_select: "stg_cfg_item_master tfm_item_master_enriched"
         trino_output:
@@ -76,8 +76,8 @@ tenant:
         source_table: lot_history
         date_column: "created_at"
         has_transfer: true
-        save_to_s3: false         # dev: S3 저장 안 함
-        save_to_trino: false      # dev: Trino 적재 안 함
+        save_to_s3: false
+        save_to_trino: false
         trino_output:
           target_table: aps_input_wip
           target_schema: aps
@@ -137,6 +137,6 @@ tenant:
       enabled: true
 
   tags:
-    customer: "project_01"
+    customer: "project_02"
     region: "ap-northeast-2"
-    tier: "enterprise"
+    tier: "standard"

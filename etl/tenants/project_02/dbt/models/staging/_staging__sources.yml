@@ -1,0 +1,36 @@
+version: 2
+
+sources:
+  - name: source_db
+    description: "Project 02 소스 데이터베이스"
+    schema: public
+    tables:
+      - name: cfg_item_master
+        description: "아이템 마스터 테이블"
+        columns:
+          - name: project_id
+            description: "프로젝트 ID"
+          - name: item_id
+            description: "아이템 ID (PK)"
+          - name: item_type
+            description: "아이템 유형"
+          - name: item_name
+            description: "아이템 이름"
+          - name: item_group_id
+            description: "아이템 그룹 ID"
+          - name: description
+            description: "설명"
+          - name: item_priority
+            description: "아이템 우선순위"
+          - name: procurement_type
+            description: "조달 유형"
+          - name: prod_type
+            description: "생산 유형"
+          - name: item_size_type
+            description: "아이템 크기 유형"
+          - name: item_spec
+            description: "아이템 사양"
+          - name: create_datetime
+            description: "생성일시"
+          - name: update_datetime
+            description: "수정일시"

@@ -75,6 +75,16 @@ class ScheduleFactory:
             if schedule:
                 schedules.append(schedule)
 
+        # dbt Transform Schedule
+        if jobs_config.dbt_transform.enabled and jobs_config.dbt_transform.schedule:
+            schedule = self._create_schedule(
+                job_suffix="dbt_transform_job",
+                schedule_config=jobs_config.dbt_transform.schedule,
+                schedule_suffix="dbt_transform_schedule",
+            )
+            if schedule:
+                schedules.append(schedule)
+
         return schedules
 
     def _create_schedule(

@@ -5,6 +5,7 @@ Resource Factory - 테넌트별 Resource 동적 생성
 import os
 
 from etl.config.tenant_config import TenantConfig
+from etl.factories.dbt_factory import DbtFactory
 from etl.resources.rdb import RDBResource
 from etl.resources.s3 import S3Resource
 from etl.resources.trino import TrinoResource
@@ -25,11 +26,19 @@ class ResourceFactory:
 
     def create_all_resources(self) -> dict:
         """테넌트의 모든 Resource 생성"""
-        return {
+        resources = {
             "rdb": self._create_rdb_resource(),
             "s3": self._create_s3_resource(),
             "trino": self._create_trino_resource(),
         }
+
+        # dbt 활성화 시 DbtCliResource 추가
+        if self.tenant.dbt.enabled:
+            dbt_factory = DbtFactory(self.tenant)
+            if dbt_factory.has_dbt_project():
+                resources["dbt_cli"] = dbt_factory.create_dbt_cli_resource()
+
+        return resources
 
     def _create_rdb_resource(self) -> RDBResource:
         """RDB Resource 생성 (테넌트별 독립 Source DB)"""

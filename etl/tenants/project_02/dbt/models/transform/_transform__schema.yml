@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: tfm_item_master_enriched
+    description: "아이템 마스터 Enriched - 우선순위 분류, 생산 여부 플래그 추가"
+    columns:
+      - name: item_id
+        description: "아이템 ID"
+        tests:
+          - not_null
+      - name: priority_category
+        description: "우선순위 분류 (HIGH/MEDIUM/LOW)"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['HIGH', 'MEDIUM', 'LOW']
+      - name: is_manufactured
+        description: "자체 생산 여부"

@@ -122,6 +122,74 @@ etl/
 
 ## 작업 이력
 
+### 2026-02-06
+
+#### dbt 통합 (Dagster Orchestrator + dbt Transformer)
+- **시간**: 2026-02-06
+- **목적**: dbt를 Transform-only 레이어로 통합, Python extract + dbt SQL transform 하이브리드 구성
+- **설계 결정**:
+  - dbt adapter: dbt-postgres (소스 PostgreSQL에서 직접 SQL 변환)
+  - 전략: 하이브리드 (Python transfer + dbt transform 공존)
+  - dbt 프로젝트: 테넌트별 별도 프로젝트
+- **작업 내용**:
+  1. **의존성 추가**: dagster-dbt>=0.22.0, dbt-postgres>=1.7.0, .gitignore에 dbt artifacts 제외
+  2. **Config 모델**: DbtTransformConfig, DbtConfig, PipelineAssetConfig에 has_dbt_transform 추가
+  3. **DbtFactory 신규 생성**: TenantDbtTranslator(dbt model→Dagster Asset Key 매핑), DbtFactory(project/resource/asset 생성)
+  4. **기존 Factory 업데이트**: AssetFactory(dbt asset 통합), ResourceFactory(dbt_cli 리소스), JobFactory(dbt_transform_job), ScheduleFactory(dbt 스케줄)
+  5. **project_01 dbt 프로젝트**: dbt_project.yml, profiles.yml, staging/transform 모델(stg_cfg_item_master, tfm_item_master_enriched)
+  6. **테넌트 Config YAML**: dbt 설정 추가, cfg_item_master에 has_dbt_transform=true
+  7. **템플릿 업데이트**: _template/dbt/ 디렉토리 추가
+- **Asset 의존성 흐름 (Dagster UI Lineage)**:
+  ```
+  [project_01/extract/cfg_item_master]
+           ↓ (dbt source → extract asset 매핑)
+  [project_01/dbt/stg_cfg_item_master]
+           ↓ (dbt ref)
+  [project_01/dbt/tfm_item_master_enriched]
+  ```
+- **검증 결과**:
+  - dbt parse: 성공 (경고 없음)
+  - Dagster definitions: 8 assets, 6 jobs, 1 schedule, 4 resources (rdb, s3, trino, dbt_cli)
+  - dbt assets: project_01/dbt/stg_cfg_item_master, project_01/dbt/tfm_item_master_enriched
+  - dbt job: project_01_dbt_transform_job
+- **관련 파일**:
+  - `etl/factories/dbt_factory.py` (신규)
+  - `etl/factories/asset_factory.py` (수정)
+  - `etl/factories/resource_factory.py` (수정)
+  - `etl/factories/job_factory.py` (수정)
+  - `etl/factories/schedule_factory.py` (수정)
+  - `etl/factories/__init__.py` (수정)
+  - `etl/config/tenant_config.py` (수정)
+  - `etl/config/__init__.py` (수정)
+  - `etl/tenants/project_01/config.yaml` (수정)
+  - `etl/tenants/project_01/dbt/` (신규 디렉토리)
+  - `etl/tenants/_template/dbt/` (신규 디렉토리)
+  - `pyproject.toml` (수정)
+  - `.gitignore` (수정)
+- **상태**: 완료
+
+#### 환경별 옵션 오버라이드 (dev/prod 분리)
+- **시간**: 2026-02-06
+- **목적**: save_to_s3/save_to_trino를 환경별로 분리 설정
+- **작업 내용**:
+  1. PipelineEnvOverride 모델 추가
+  2. PipelineAssetConfig에 environments 필드 추가, resolve_for_env() 메서드
+  3. AssetFactory, JobFactory에 environment 파라미터 추가
+  4. config.yaml에 환경별 오버라이드 설정 (dev: S3/Trino off, prod: on)
+- **검증 결과**: dev=7 assets (load 제외), prod=11 assets (load 포함)
+- **상태**: 완료
+
+#### 데이터 프리뷰 기능 추가
+- **시간**: 2026-02-06
+- **목적**: Extract 결과를 Dagster UI에서 미리보기
+- **작업 내용**:
+  1. dagster/column_schema: TableSchema/TableColumn으로 컬럼 정보 표시
+  2. preview: 상위 20행 markdown 테이블
+  3. null_counts: null 현황 JSON
+- **상태**: 완료
+
+---
+
 ### 2026-02-05
 
 #### 테넌트 명칭 및 모듈 경로 개선

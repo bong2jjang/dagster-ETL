@@ -1,0 +1,24 @@
+# =============================================================================
+# Project 02 dbt Profiles (환경변수 기반)
+# =============================================================================
+project_02:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('PROJECT_02_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('PROJECT_02_DB_PORT', '5432') | int }}"
+      user: "{{ env_var('PROJECT_02_DB_USER', 'mzcadm') }}"
+      password: "{{ env_var('PROJECT_02_DB_PASSWORD', '') }}"
+      dbname: "{{ env_var('PROJECT_02_DB_NAME', 'mzc_aps') }}"
+      schema: public
+      threads: 4
+    prod:
+      type: postgres
+      host: "{{ env_var('PROJECT_02_DB_HOST') }}"
+      port: "{{ env_var('PROJECT_02_DB_PORT', '5432') | int }}"
+      user: "{{ env_var('PROJECT_02_DB_USER') }}"
+      password: "{{ env_var('PROJECT_02_DB_PASSWORD') }}"
+      dbname: "{{ env_var('PROJECT_02_DB_NAME') }}"
+      schema: public
+      threads: 4
