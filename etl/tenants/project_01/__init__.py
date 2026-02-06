@@ -1,5 +1,5 @@
 """
-Project 01 테넌트 - 커스텀 Transform 로직 사용 예시
+Project 01 테넌트 - 커스텀 Transfer 로직 사용 예시
 """
 
 TENANT_ID = "project_01"
@@ -25,13 +25,13 @@ CUSTOM_EXTRACT_QUERIES = {
     """,
 }
 
-# 커스텀 Transform 함수 등록
+# 커스텀 Transfer 함수 등록
 # None이면 common 사용, 함수를 지정하면 해당 함수 사용
-from etl.tenants.project_01.assets.transform import (
+from etl.tenants.project_01.assets.transfer import (
     transform_aps_wip_logic as project_01_wip_logic,
 )
 
-CUSTOM_TRANSFORM_FUNCTIONS = {
+CUSTOM_TRANSFER_FUNCTIONS = {
     "aps_wip": project_01_wip_logic,
     # "cycle_time": None,  # common 사용
     # "equipment_utilization": None,  # common 사용

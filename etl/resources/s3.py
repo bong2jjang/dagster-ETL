@@ -120,7 +120,7 @@ class S3Resource(ConfigurableResource):
         tenant_id: str,
         stage: str,
         job_name: str,
-        partition_date: str,
+        partition_date: str | None,
         filename: str,
     ) -> str:
         """
@@ -128,22 +128,21 @@ class S3Resource(ConfigurableResource):
 
         Args:
             tenant_id: 테넌트 ID
-            stage: extract / transform
+            stage: extract / transfer / load
             job_name: Job 이름
-            partition_date: 파티션 날짜 (YYYY-MM-DD)
+            partition_date: 파티션 날짜 (YYYY-MM-DD), None이면 latest
             filename: 파일명
 
         Returns:
-            S3 key 경로 (project_id={tenant_id}/{stage}/job_name={job_name}/date={date}/{filename})
+            S3 key 경로
         """
-        date_formatted = partition_date.replace("-", "")
+        base = self.tenant_base_path if self.tenant_base_path else f"project_id={tenant_id}"
 
-        if self.tenant_base_path:
-            # 설정된 테넌트 경로 사용
-            return f"{self.tenant_base_path}/{stage}/job_name={job_name}/date={date_formatted}/{filename}"
+        if partition_date:
+            date_formatted = partition_date.replace("-", "")
+            return f"{base}/{stage}/job_name={job_name}/date={date_formatted}/{filename}"
         else:
-            # 기본 형식: project_id={tenant_id}/...
-            return f"project_id={tenant_id}/{stage}/job_name={job_name}/date={date_formatted}/{filename}"
+            return f"{base}/{stage}/job_name={job_name}/latest/{filename}"
 
     def write_parquet_for_tenant(
         self,
@@ -151,7 +150,7 @@ class S3Resource(ConfigurableResource):
         tenant_id: str,
         stage: str,
         job_name: str,
-        partition_date: str,
+        partition_date: str | None = None,
         filename: str = "data.parquet",
         schema: pa.Schema | None = None,
     ) -> str:
@@ -161,9 +160,9 @@ class S3Resource(ConfigurableResource):
         Args:
             df: 저장할 DataFrame
             tenant_id: 테넌트 ID
-            stage: extract / transform
+            stage: extract / transfer / load
             job_name: Job 이름
-            partition_date: 파티션 날짜
+            partition_date: 파티션 날짜 (None이면 latest)
             filename: 파일명
             schema: PyArrow 스키마 (optional)
 

@@ -17,7 +17,7 @@ from dagster import (
     asset,
 )
 
-from etl.common.assets.transform import (
+from etl.common.assets.transfer import (
     transform_aps_wip_logic,
     transform_cycle_time_logic,
     transform_equipment_utilization_logic,

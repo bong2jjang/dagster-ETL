@@ -1,6 +1,5 @@
 # =============================================================================
-# Project 01 테넌트 설정
-# 커스텀 Transform 로직 사용
+# Project 01 테넌트 설정 (OnPrem APS - mzc_aps)
 # =============================================================================
 
 tenant:
@@ -8,7 +7,6 @@ tenant:
   name: "Project 01"
   enabled: true
 
-  # 커스텀 코드 사용 여부
   use_custom_code: true
 
   environments:
@@ -17,13 +15,13 @@ tenant:
     staging:
       enabled: true
     prod:
-      enabled: false  # 운영은 별도 활성화 필요
+      enabled: false
 
   source_database:
     host: "${PROJECT_01_DB_HOST:localhost}"
-    port: 5432
-    database: "${PROJECT_01_DB_NAME:project_01_source_db}"
-    username: "${PROJECT_01_DB_USER:postgres}"
+    port: "${PROJECT_01_DB_PORT:5432}"
+    database: "${PROJECT_01_DB_NAME:mzc_aps}"
+    username: "${PROJECT_01_DB_USER:mzcadm}"
     password: "${PROJECT_01_DB_PASSWORD:}"
     schema: "public"
 
@@ -32,11 +30,82 @@ tenant:
     base_path: "project_id=project_01"
 
   target_database:
-    trino_host: "${TRINO_HOST:localhost}"
-    trino_port: 8080
-    trino_user: "${TRINO_USER:trino}"
-    target_catalog: "postgresql"
+    trino_host: "${TRINO_HOST:192.168.1.250}"
+    trino_port: "${TRINO_PORT:18080}"
+    trino_user: "${TRINO_USER:admin}"
+    trino_http_scheme: "${TRINO_HTTP_SCHEME:http}"
+    target_catalog: "${TRINO_CATALOG:iceberg}"
     target_schema: "aps"
+
+  # ===========================================================================
+  # Assets - 파이프라인 설정
+  # 흐름: extract → (optional) transfer → (optional) load
+  #
+  # save_to_s3 / save_to_trino 기본값은 dev 기준.
+  # 환경별로 다르게 하려면 environments 하위에 오버라이드 설정.
+  # ===========================================================================
+  assets:
+    pipelines:
+      # ----- 마스터 데이터 (파티션 없음) -----
+      cfg_item_master:
+        source_table: cfg_item_master
+        save_to_s3: false         # dev: S3 저장 안 함
+        save_to_trino: false      # dev: Trino 적재 안 함
+        trino_output:
+          target_table: cfg_item_master
+          target_schema: aps
+          key_columns: ["project_id", "item_id"]
+        environments:
+          prod:
+            save_to_s3: true
+            save_to_trino: true
+
+      # ----- 이벤트 데이터 (Daily 파티션) -----
+      lot_history:
+        source_table: lot_history
+        date_column: "created_at"
+        has_transfer: true
+        save_to_s3: false         # dev: S3 저장 안 함
+        save_to_trino: false      # dev: Trino 적재 안 함
+        trino_output:
+          target_table: aps_input_wip
+          target_schema: aps
+          key_columns: ["project_id", "snapshot_date", "process_step", "product_code"]
+        environments:
+          prod:
+            save_to_s3: true
+            save_to_trino: true
+
+      equipment_event:
+        source_table: equipment_event
+        date_column: "event_time"
+        has_transfer: true
+        save_to_s3: false
+        save_to_trino: false
+        trino_output:
+          target_table: equipment_utilization
+          target_schema: monitoring
+          key_columns: ["project_id", "snapshot_date", "equipment_id"]
+        environments:
+          prod:
+            save_to_s3: true
+            save_to_trino: true
+
+      process_result:
+        source_table: process_result
+        date_column: "measured_at"
+        has_transfer: true
+        transfer_inputs: ["lot_history", "process_result"]
+        save_to_s3: false
+        save_to_trino: false
+        trino_output:
+          target_table: aps_input_cycle_time
+          target_schema: aps
+          key_columns: ["project_id", "snapshot_date", "process_step", "product_code"]
+        environments:
+          prod:
+            save_to_s3: true
+            save_to_trino: true
 
   jobs:
     daily_etl:
@@ -45,6 +114,8 @@ tenant:
         cron: "0 2 * * *"
         timezone: "Asia/Seoul"
         auto_start: false
+    master_sync:
+      enabled: true
     wip_pipeline:
       enabled: true
     cycle_time_pipeline:

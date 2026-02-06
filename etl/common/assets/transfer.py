@@ -1,6 +1,6 @@
 """
-Common Transform Logic - 공용 변환 로직
-테넌트별 커스텀이 필요한 경우 tenants/{tenant}/assets/transform.py에서 오버라이드
+Common Transfer Logic - 공용 변환 로직
+테넌트별 커스텀이 필요한 경우 tenants/{tenant}/assets/transfer.py에서 오버라이드
 """
 
 import pandas as pd
@@ -9,7 +9,7 @@ from etl.utils.logging import ETLLogger
 from etl.utils.validation import DataValidator
 
 
-logger = ETLLogger("common.transform")
+logger = ETLLogger("common.transfer")
 
 
 def transform_aps_wip_logic(

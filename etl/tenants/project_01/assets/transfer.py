@@ -1,6 +1,6 @@
 """
-Project 01 - 커스텀 Transform 로직
-common/assets/transform.py를 기반으로 고유 로직 추가
+Project 01 - 커스텀 Transfer 로직
+common/assets/transfer.py를 기반으로 고유 로직 추가
 """
 
 import pandas as pd
@@ -9,7 +9,7 @@ from etl.utils.logging import ETLLogger
 from etl.utils.validation import DataValidator
 
 
-logger = ETLLogger("project_01.transform")
+logger = ETLLogger("project_01.transfer")
 
 
 def transform_aps_wip_logic(
@@ -27,7 +27,7 @@ def transform_aps_wip_logic(
     """
     df = input_dfs["lot_history"]
 
-    logger.info(f"[{tenant_id}] Using Project 01 custom WIP transform logic")
+    logger.info(f"[{tenant_id}] Using Project 01 custom WIP transfer logic")
 
     # 1. Hold/Scrap Lot 필터링
     df_active = df[df["status"].isin(["IN_PROGRESS", "COMPLETED"])].copy()
@@ -38,15 +38,9 @@ def transform_aps_wip_logic(
     # 3. 공정별 WIP 집계
     group_cols = ["process_step", "product_code"]
 
-    agg_dict = {
-        "quantity": [("wip_qty", "sum")],
-        "lot_id": [("lot_count", "nunique")],
-    }
-
     # priority가 있으면 HIGH priority 카운트 추가
     if has_priority:
         df_active["is_high_priority"] = (df_active["priority"] == "HIGH").astype(int)
-        agg_dict["is_high_priority"] = [("high_priority_count", "sum")]
 
     wip_df = df_active.groupby(group_cols).agg(
         wip_qty=("quantity", "sum"),
@@ -82,7 +76,7 @@ def transform_aps_wip_logic(
         )
 
     logger.info(
-        f"[{tenant_id}] WIP transform completed",
+        f"[{tenant_id}] WIP transfer completed",
         rows=len(wip_df),
         has_priority=has_priority,
     )

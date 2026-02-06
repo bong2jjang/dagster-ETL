@@ -8,6 +8,10 @@ from etl.config.tenant_config import (
     JobConfig,
     JobsConfig,
     ScheduleConfig,
+    PipelineAssetConfig,
+    PipelineEnvOverride,
+    TrinoOutputConfig,
+    AssetsConfig,
 )
 from etl.config.config_loader import ConfigLoader
 from etl.config.tenant_loader import TenantLoader
@@ -20,6 +24,10 @@ __all__ = [
     "JobConfig",
     "JobsConfig",
     "ScheduleConfig",
+    "PipelineAssetConfig",
+    "PipelineEnvOverride",
+    "TrinoOutputConfig",
+    "AssetsConfig",
     "ConfigLoader",
     "TenantLoader",
 ]

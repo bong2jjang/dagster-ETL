@@ -65,6 +65,7 @@ class ResourceFactory:
             port=target_config.trino_port,
             user=target_config.trino_user,
             password=target_config.trino_password,
+            http_scheme=target_config.trino_http_scheme,
             catalog=target_config.target_catalog,
             schema_name=target_config.target_schema,
         )

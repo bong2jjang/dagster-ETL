@@ -7,12 +7,12 @@ ETL Common Module - 공용 코드
 구조:
     common/
     └── assets/
-        ├── extract.py   - 기본 Extract 쿼리 및 설정
-        ├── transform.py - 기본 Transform 로직
-        └── load.py      - 기본 Load 설정
+        ├── extract.py   - 기본 Extract(Input Load) 쿼리 및 설정
+        ├── transfer.py  - 기본 Transfer 로직
+        └── load.py      - 기본 Load(Output Save) 설정
 """
 
-from etl.common.assets import extract, transform, load
+from etl.common.assets import extract, transfer, load
 
 # Extract
 from etl.common.assets.extract import (
@@ -22,8 +22,8 @@ from etl.common.assets.extract import (
     get_extract_config,
 )
 
-# Transform
-from etl.common.assets.transform import (
+# Transfer
+from etl.common.assets.transfer import (
     transform_aps_wip_logic,
     transform_cycle_time_logic,
     transform_equipment_utilization_logic,
@@ -38,14 +38,14 @@ from etl.common.assets.load import (
 __all__ = [
     # Modules
     "extract",
-    "transform",
+    "transfer",
     "load",
     # Extract
     "DEFAULT_EXTRACT_QUERIES",
     "DEFAULT_EXTRACT_CONFIGS",
     "get_extract_query",
     "get_extract_config",
-    # Transform
+    # Transfer
     "transform_aps_wip_logic",
     "transform_cycle_time_logic",
     "transform_equipment_utilization_logic",

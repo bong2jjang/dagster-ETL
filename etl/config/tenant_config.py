@@ -44,7 +44,8 @@ class TargetDatabaseConfig(BaseModel):
     trino_port: int = 8080
     trino_user: str = "trino"
     trino_password: str = ""
-    target_catalog: str = "postgresql"
+    trino_http_scheme: str = "http"
+    target_catalog: str = "iceberg"
     target_schema: str = "aps"  # 공유 스키마 (project_id 컬럼으로 구분)
 
 
@@ -67,44 +68,67 @@ class JobsConfig(BaseModel):
     """전체 Job 설정"""
 
     daily_etl: JobConfig = Field(default_factory=JobConfig)
-    extract_only: JobConfig = Field(default_factory=lambda: JobConfig(enabled=False))
-    transform_only: JobConfig = Field(default_factory=lambda: JobConfig(enabled=False))
-    load_only: JobConfig = Field(default_factory=lambda: JobConfig(enabled=False))
+    master_sync: JobConfig = Field(default_factory=JobConfig)
     wip_pipeline: JobConfig = Field(default_factory=JobConfig)
     cycle_time_pipeline: JobConfig = Field(default_factory=JobConfig)
     equipment_pipeline: JobConfig = Field(default_factory=JobConfig)
 
 
-class ExtractAssetConfig(BaseModel):
-    """Extract Asset 설정"""
+class TrinoOutputConfig(BaseModel):
+    """Trino 출력 설정"""
 
-    enabled: bool = True
-    source_table: str
-    date_column: str
-    query: str | None = None  # Custom SQL query (optional)
-
-
-class TransformAssetConfig(BaseModel):
-    """Transform Asset 설정"""
-
-    enabled: bool = True
-
-
-class LoadAssetConfig(BaseModel):
-    """Load Asset 설정"""
-
-    enabled: bool = True
     target_table: str
     target_schema: str = "aps"
     key_columns: list[str] = Field(default_factory=list)
 
 
-class AssetsConfig(BaseModel):
-    """Asset 설정"""
+class PipelineEnvOverride(BaseModel):
+    """환경별 파이프라인 옵션 오버라이드"""
 
-    extract: dict[str, ExtractAssetConfig] = Field(default_factory=dict)
-    transform: dict[str, TransformAssetConfig] = Field(default_factory=dict)
-    load: dict[str, LoadAssetConfig] = Field(default_factory=dict)
+    save_to_s3: bool | None = None
+    save_to_trino: bool | None = None
+
+
+class PipelineAssetConfig(BaseModel):
+    """개별 파이프라인 Asset 설정
+
+    파이프라인 흐름: input_load → (optional) transfer → (optional) output_save
+
+    environments 필드로 환경별 save_to_s3/save_to_trino를 오버라이드할 수 있음.
+    예) dev에서는 save_to_s3: false, prod에서는 save_to_s3: true
+    """
+
+    source_table: str
+    query: str | None = None
+    date_column: str | None = None  # None이면 파티션 없음 (마스터 데이터)
+    save_to_s3: bool = True  # Extract 결과 S3 Parquet 저장 여부
+    has_transfer: bool = False  # transfer 단계 포함 여부
+    transfer_inputs: list[str] | None = None  # transfer의 입력 asset 목록 (None이면 자기 자신)
+    save_to_trino: bool = False  # Trino 적재 여부
+    trino_output: TrinoOutputConfig | None = None
+    environments: dict[str, PipelineEnvOverride] | None = None
+
+    def resolve_for_env(self, env: str) -> "PipelineAssetConfig":
+        """환경에 맞게 옵션을 오버라이드한 설정 반환"""
+        if not self.environments or env not in self.environments:
+            return self
+
+        override = self.environments[env]
+        data = self.model_dump()
+        data.pop("environments", None)
+
+        if override.save_to_s3 is not None:
+            data["save_to_s3"] = override.save_to_s3
+        if override.save_to_trino is not None:
+            data["save_to_trino"] = override.save_to_trino
+
+        return PipelineAssetConfig(**data)
+
+
+class AssetsConfig(BaseModel):
+    """Asset 설정 (파이프라인 기반)"""
+
+    pipelines: dict[str, PipelineAssetConfig] = Field(default_factory=dict)
 
 
 class EnvironmentConfig(BaseModel):
@@ -159,40 +183,39 @@ class TenantConfig(BaseModel):
     def get_default_assets_config(self) -> AssetsConfig:
         """기본 Asset 설정 반환"""
         return AssetsConfig(
-            extract={
-                "lot_history": ExtractAssetConfig(
+            pipelines={
+                "lot_history": PipelineAssetConfig(
                     source_table="lot_history",
-                    date_column="DATE(created_at)",
+                    date_column="created_at",
+                    has_transfer=True,
+                    save_to_trino=True,
+                    trino_output=TrinoOutputConfig(
+                        target_table="aps_input_wip",
+                        target_schema="aps",
+                        key_columns=["project_id", "snapshot_date", "process_step", "product_code"],
+                    ),
                 ),
-                "equipment_event": ExtractAssetConfig(
+                "equipment_event": PipelineAssetConfig(
                     source_table="equipment_event",
-                    date_column="DATE(event_time)",
+                    date_column="event_time",
+                    has_transfer=True,
+                    save_to_trino=True,
+                    trino_output=TrinoOutputConfig(
+                        target_table="equipment_utilization",
+                        target_schema="monitoring",
+                        key_columns=["project_id", "snapshot_date", "equipment_id"],
+                    ),
                 ),
-                "process_result": ExtractAssetConfig(
+                "process_result": PipelineAssetConfig(
                     source_table="process_result",
-                    date_column="DATE(measured_at)",
-                ),
-            },
-            transform={
-                "aps_wip": TransformAssetConfig(),
-                "cycle_time": TransformAssetConfig(),
-                "equipment_utilization": TransformAssetConfig(),
-            },
-            load={
-                "aps_wip": LoadAssetConfig(
-                    target_table="aps_input_wip",
-                    target_schema="aps",
-                    key_columns=["project_id", "snapshot_date", "process_step", "product_code"],
-                ),
-                "cycle_time": LoadAssetConfig(
-                    target_table="aps_input_cycle_time",
-                    target_schema="aps",
-                    key_columns=["project_id", "snapshot_date", "process_step", "product_code"],
-                ),
-                "equipment_utilization": LoadAssetConfig(
-                    target_table="equipment_utilization",
-                    target_schema="monitoring",
-                    key_columns=["project_id", "snapshot_date", "equipment_id"],
+                    date_column="measured_at",
+                    has_transfer=True,
+                    save_to_trino=True,
+                    trino_output=TrinoOutputConfig(
+                        target_table="aps_input_cycle_time",
+                        target_schema="aps",
+                        key_columns=["project_id", "snapshot_date", "process_step", "product_code"],
+                    ),
                 ),
             },
         )

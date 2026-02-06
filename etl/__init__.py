@@ -56,11 +56,11 @@ def build_tenant_definitions(tenant_id: str) -> Definitions:
     resources = resource_factory.create_all_resources()
 
     # 2. Asset 생성
-    asset_factory = AssetFactory(tenant)
+    asset_factory = AssetFactory(tenant, environment)
     assets = asset_factory.create_all_etl_assets()
 
     # 3. Job 생성
-    job_factory = JobFactory(tenant)
+    job_factory = JobFactory(tenant, environment)
     jobs = job_factory.create_all_jobs()
 
     # 4. Schedule 생성
@@ -68,7 +68,7 @@ def build_tenant_definitions(tenant_id: str) -> Definitions:
     schedule_factory = ScheduleFactory(tenant, jobs_dict)
     schedules = schedule_factory.create_all_schedules()
 
-    print(f"[{tenant_id}] Loaded: {len(assets)} assets, {len(jobs)} jobs, {len(schedules)} schedules")
+    print(f"[{tenant_id}] Loaded: {len(assets)} assets, {len(jobs)} jobs, {len(schedules)} schedules (env={environment})")
 
     return Definitions(
         assets=assets,
@@ -114,12 +114,12 @@ def build_all_definitions() -> Definitions:
         all_resources.update(tenant_resources)
 
         # 2. Asset 생성 (TenantLoader를 통해 커스텀 코드 자동 적용)
-        asset_factory = AssetFactory(tenant)
+        asset_factory = AssetFactory(tenant, environment)
         tenant_assets = asset_factory.create_all_etl_assets()
         all_assets.extend(tenant_assets)
 
         # 3. Job 생성
-        job_factory = JobFactory(tenant)
+        job_factory = JobFactory(tenant, environment)
         tenant_jobs = job_factory.create_all_jobs()
         all_jobs.extend(tenant_jobs)
 

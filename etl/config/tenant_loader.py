@@ -1,6 +1,6 @@
 """
 Tenant Loader - 테넌트별 커스텀 코드 로더
-테넌트 폴더에서 커스텀 Extract/Transform/Load 코드를 로드
+테넌트 폴더에서 커스텀 Extract/Transfer/Load 코드를 로드
 """
 
 import importlib
@@ -16,7 +16,7 @@ from etl.common.assets.extract import (
     get_extract_query,
     get_extract_config,
 )
-from etl.common.assets.transform import (
+from etl.common.assets.transfer import (
     transform_aps_wip_logic,
     transform_cycle_time_logic,
     transform_equipment_utilization_logic,
@@ -30,8 +30,8 @@ from etl.common.assets.load import (
 class TenantLoader:
     """테넌트별 커스텀 코드 로더"""
 
-    # 공용 Transform 함수 매핑
-    COMMON_TRANSFORM_FUNCTIONS = {
+    # 공용 Transfer 함수 매핑
+    COMMON_TRANSFER_FUNCTIONS = {
         "aps_wip": transform_aps_wip_logic,
         "cycle_time": transform_cycle_time_logic,
         "equipment_utilization": transform_equipment_utilization_logic,
@@ -113,31 +113,33 @@ class TenantLoader:
         """
         return get_extract_config(asset_name)
 
-    def get_transform_function(
+    def get_transfer_function(
         self, asset_name: str
     ) -> Callable[[dict[str, pd.DataFrame], str, str], pd.DataFrame]:
         """
-        Transform 함수 조회 (커스텀 우선, 없으면 공용)
+        Transfer 함수 조회 (커스텀 우선, 없으면 공용)
 
         Args:
             asset_name: Asset 이름 (e.g., "aps_wip")
 
         Returns:
-            Transform 함수
+            Transfer 함수
         """
         module = self._load_tenant_module()
 
-        # 커스텀 함수 확인
-        if module and hasattr(module, "CUSTOM_TRANSFORM_FUNCTIONS"):
-            custom_functions = module.CUSTOM_TRANSFORM_FUNCTIONS
-            if custom_functions and asset_name in custom_functions:
-                custom_fn = custom_functions[asset_name]
-                if custom_fn is not None:
-                    print(f"[{self.tenant_id}] Using custom transform for {asset_name}")
-                    return custom_fn
+        # 커스텀 함수 확인 (CUSTOM_TRANSFER_FUNCTIONS 우선)
+        if module:
+            for attr_name in ["CUSTOM_TRANSFER_FUNCTIONS", "CUSTOM_TRANSFORM_FUNCTIONS"]:
+                if hasattr(module, attr_name):
+                    custom_functions = getattr(module, attr_name)
+                    if custom_functions and asset_name in custom_functions:
+                        custom_fn = custom_functions[asset_name]
+                        if custom_fn is not None:
+                            print(f"[{self.tenant_id}] Using custom transfer for {asset_name}")
+                            return custom_fn
 
         # 공용 함수 반환
-        return self.COMMON_TRANSFORM_FUNCTIONS.get(asset_name, transform_aps_wip_logic)
+        return self.COMMON_TRANSFER_FUNCTIONS.get(asset_name, transform_aps_wip_logic)
 
     def get_load_config(self, asset_name: str) -> dict:
         """
@@ -157,18 +159,18 @@ class TenantLoader:
 
         return get_load_config(asset_name, custom_configs)
 
-    def get_all_transform_functions(
+    def get_all_transfer_functions(
         self,
     ) -> dict[str, Callable[[dict[str, pd.DataFrame], str, str], pd.DataFrame]]:
         """
-        모든 Transform 함수 조회
+        모든 Transfer 함수 조회
 
         Returns:
-            {asset_name: transform_function} 딕셔너리
+            {asset_name: transfer_function} 딕셔너리
         """
         return {
-            name: self.get_transform_function(name)
-            for name in self.COMMON_TRANSFORM_FUNCTIONS.keys()
+            name: self.get_transfer_function(name)
+            for name in self.COMMON_TRANSFER_FUNCTIONS.keys()
         }
 
     def has_custom_code(self) -> bool:
@@ -179,6 +181,7 @@ class TenantLoader:
 
         has_custom = any([
             getattr(module, "CUSTOM_EXTRACT_QUERIES", None),
+            getattr(module, "CUSTOM_TRANSFER_FUNCTIONS", None),
             getattr(module, "CUSTOM_TRANSFORM_FUNCTIONS", None),
             getattr(module, "CUSTOM_LOAD_CONFIGS", None),
         ])

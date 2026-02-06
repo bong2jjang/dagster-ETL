@@ -1,6 +1,11 @@
 """
 Asset Factory - 테넌트별 Asset 동적 생성
-TenantLoader를 사용하여 테넌트별 커스텀 코드 지원
+PipelineAssetConfig 기반으로 extract → transfer → load 파이프라인 구성
+
+파이프라인 흐름:
+- extract (input_load): RDB에서 추출 → S3 Parquet 저장 (항상)
+- transfer: 입력 데이터 가공 (선택, has_transfer=True)
+- load (output_save): Trino에 적재 (선택, save_to_trino=True)
 """
 
 from typing import Any, Callable
@@ -12,10 +17,12 @@ from dagster import (
     AssetsDefinition,
     MetadataValue,
     Output,
+    TableColumn,
+    TableSchema,
     asset,
 )
 
-from etl.config.tenant_config import TenantConfig
+from etl.config.tenant_config import PipelineAssetConfig, TenantConfig
 from etl.config.tenant_loader import TenantLoader
 from etl.partitions.daily import daily_partitions_def
 from etl.resources.rdb import RDBResource
@@ -25,42 +32,62 @@ from etl.utils.logging import ETLLogger
 
 
 class AssetFactory:
-    """테넌트별 Asset 생성 팩토리 (TenantLoader 연동)"""
+    """테넌트별 Asset 생성 팩토리 (PipelineAssetConfig 기반)"""
 
-    def __init__(self, tenant: TenantConfig):
+    def __init__(self, tenant: TenantConfig, environment: str = "dev"):
         self.tenant = tenant
         self.tenant_id = tenant.id
+        self.environment = environment
         self.logger = ETLLogger(f"factory.{self.tenant_id}")
         self.tenant_loader = TenantLoader(tenant.id)
+
+    def _get_pipeline_configs(self) -> dict[str, PipelineAssetConfig]:
+        """테넌트의 파이프라인 설정 조회 (YAML > 기본값), 환경별 오버라이드 적용"""
+        if self.tenant.assets.pipelines:
+            pipelines = self.tenant.assets.pipelines
+        else:
+            pipelines = self.tenant.get_default_assets_config().pipelines
+
+        return {
+            name: config.resolve_for_env(self.environment)
+            for name, config in pipelines.items()
+        }
+
+    def _get_partitions_def(self, config: PipelineAssetConfig):
+        """파티션 정의 반환 (date_column이 있으면 daily, 없으면 None)"""
+        return daily_partitions_def if config.date_column else None
 
     def create_extract_asset(
         self,
         asset_name: str,
-        source_table: str,
-        date_column: str,
-        query: str | None = None,
+        config: PipelineAssetConfig,
     ) -> AssetsDefinition:
         """
-        Extract Asset 생성
+        Extract Asset 생성 (input_load)
+        RDB에서 데이터 추출 후 항상 S3에 Parquet 저장
 
         Args:
-            asset_name: Asset 이름 (e.g., "lot_history")
-            source_table: 소스 테이블명
-            date_column: 날짜 필터 컬럼
-            query: SQL 쿼리 (없으면 기본 쿼리 사용)
+            asset_name: Asset 이름 (e.g., "cfg_item_master")
+            config: 파이프라인 설정
         """
         tenant_id = self.tenant_id
         tenant_name = self.tenant.name
         full_asset_name = f"{tenant_id}/extract/{asset_name}"
+        source_table = config.source_table
+        date_column = config.date_column
+        save_to_s3 = config.save_to_s3
+        partitions_def = self._get_partitions_def(config)
 
         # TenantLoader에서 커스텀 쿼리 조회 (커스텀 > 공용)
         extract_queries = self.tenant_loader.get_extract_queries()
-        sql_query = query or extract_queries.get(asset_name, f"SELECT * FROM {source_table}")
+        sql_query = config.query or extract_queries.get(
+            asset_name, f"SELECT * FROM {source_table}"
+        )
 
         @asset(
             name=asset_name,
             key_prefix=[tenant_id, "extract"],
-            partitions_def=daily_partitions_def,
+            partitions_def=partitions_def,
             group_name=tenant_id,
             description=f"[{tenant_name}] Extract {asset_name}",
             compute_kind="sql",
@@ -76,29 +103,66 @@ class AssetFactory:
             rdb: RDBResource,
             s3: S3Resource,
         ) -> Output[dict[str, Any]]:
-            partition_date = context.partition_key
             logger = ETLLogger(f"extract.{tenant_id}")
 
-            logger.log_extract_start(full_asset_name, partition_date, source_table)
+            # 파티션 날짜 결정
+            partition_date = context.partition_key if partitions_def else None
+
+            logger.log_extract_start(full_asset_name, partition_date or "latest", source_table)
 
             # 데이터 추출
-            df = rdb.execute_query_with_date_filter(
-                query=sql_query,
-                date_column=date_column,
-                partition_date=partition_date,
-            )
-
-            # S3에 저장 (테넌트 경로)
-            s3_path = s3.write_parquet_for_tenant(
-                df=df,
-                tenant_id=tenant_id,
-                stage="extract",
-                job_name=asset_name,
-                partition_date=partition_date,
-            )
+            if date_column and partition_date:
+                df = rdb.execute_query_with_date_filter(
+                    query=sql_query,
+                    date_column=date_column,
+                    partition_date=partition_date,
+                )
+            else:
+                df = rdb.execute_query(sql_query)
 
             row_count = len(df)
-            logger.log_extract_complete(full_asset_name, partition_date, row_count, s3_path)
+
+            # S3 저장 (save_to_s3 옵션에 따라)
+            if save_to_s3:
+                s3_path = s3.write_parquet_for_tenant(
+                    df=df,
+                    tenant_id=tenant_id,
+                    stage="extract",
+                    job_name=asset_name,
+                    partition_date=partition_date,
+                )
+            else:
+                s3_path = None
+
+            logger.log_extract_complete(full_asset_name, partition_date or "latest", row_count, s3_path or "N/A (S3 save disabled)")
+
+            # 메타데이터 구성
+            metadata = {
+                "row_count": MetadataValue.int(row_count),
+                "s3_path": MetadataValue.text(s3_path or "disabled"),
+                "partition_date": MetadataValue.text(partition_date or "latest"),
+                "tenant_id": MetadataValue.text(tenant_id),
+                # 컬럼 스키마 (UI의 "Columns" 탭에 표시)
+                "dagster/column_schema": TableSchema(
+                    columns=[
+                        TableColumn(name=col, type=str(dtype))
+                        for col, dtype in df.dtypes.items()
+                    ]
+                ),
+            }
+
+            # 데이터 프리뷰 (상위 20행, markdown 테이블)
+            if row_count > 0:
+                preview_df = df.head(20)
+                metadata["preview"] = MetadataValue.md(
+                    preview_df.to_markdown(index=False)
+                )
+
+                # Null 현황
+                null_counts = df.isnull().sum()
+                nulls = {col: int(cnt) for col, cnt in null_counts.items() if cnt > 0}
+                if nulls:
+                    metadata["null_counts"] = MetadataValue.json(nulls)
 
             return Output(
                 value={
@@ -106,36 +170,33 @@ class AssetFactory:
                     "row_count": row_count,
                     "tenant_id": tenant_id,
                 },
-                metadata={
-                    "row_count": MetadataValue.int(row_count),
-                    "s3_path": MetadataValue.path(s3_path),
-                    "partition_date": MetadataValue.text(partition_date),
-                    "tenant_id": MetadataValue.text(tenant_id),
-                    "columns": MetadataValue.json(df.columns.tolist()),
-                },
+                metadata=metadata,
             )
 
         return _extract_asset
 
-    def create_transform_asset(
+    def create_transfer_asset(
         self,
         asset_name: str,
-        input_assets: list[str],
-        transform_fn: Callable[[dict[str, pd.DataFrame], str, str], pd.DataFrame],
+        config: PipelineAssetConfig,
+        transfer_fn: Callable[[dict[str, pd.DataFrame], str, str], pd.DataFrame],
     ) -> AssetsDefinition:
         """
-        Transform Asset 생성
+        Transfer Asset 생성
+        입력 데이터를 가공하여 출력 데이터 생성
 
         Args:
             asset_name: Asset 이름 (e.g., "aps_wip")
-            input_assets: 입력 Asset 이름 리스트 (tenant prefix 없이)
-            transform_fn: 변환 함수 (input_dfs, partition_date, tenant_id) -> output_df
+            config: 파이프라인 설정
+            transfer_fn: 변환 함수 (input_dfs, partition_date, tenant_id) -> output_df
         """
         tenant_id = self.tenant_id
         tenant_name = self.tenant.name
-        full_asset_name = f"{tenant_id}/transform/{asset_name}"
+        full_asset_name = f"{tenant_id}/transfer/{asset_name}"
+        partitions_def = self._get_partitions_def(config)
 
-        # 입력 의존성 설정 (계층형 key 사용)
+        # 입력 의존성 설정
+        input_assets = config.transfer_inputs or [asset_name]
         ins = {
             name: AssetIn(key=[tenant_id, "extract", name])
             for name in input_assets
@@ -143,32 +204,31 @@ class AssetFactory:
 
         @asset(
             name=asset_name,
-            key_prefix=[tenant_id, "transform"],
-            partitions_def=daily_partitions_def,
+            key_prefix=[tenant_id, "transfer"],
+            partitions_def=partitions_def,
             ins=ins,
             group_name=tenant_id,
-            description=f"[{tenant_name}] Transform {asset_name}",
+            description=f"[{tenant_name}] Transfer {asset_name}",
             compute_kind="pandas",
             tags={
                 "tenant_id": tenant_id,
-                "stage": "transform",
+                "stage": "transfer",
                 **self.tenant.tags,
             },
         )
-        def _transform_asset(
+        def _transfer_asset(
             context: AssetExecutionContext,
             s3: S3Resource,
             **inputs: dict[str, Any],
         ) -> Output[dict[str, Any]]:
-            partition_date = context.partition_key
-            logger = ETLLogger(f"transform.{tenant_id}")
+            logger = ETLLogger(f"transfer.{tenant_id}")
+            partition_date = context.partition_key if partitions_def else "latest"
 
             # 입력 데이터 로드
             input_dfs: dict[str, pd.DataFrame] = {}
             total_input_rows = 0
 
             for asset_key, asset_data in inputs.items():
-                # asset_key가 이제 원래 이름 그대로 (e.g., "lot_history")
                 df = s3.read_parquet_from_path(asset_data["s3_path"])
                 input_dfs[asset_key] = df
                 total_input_rows += len(df)
@@ -177,15 +237,15 @@ class AssetFactory:
             logger.log_transform_start(full_asset_name, partition_date, first_input["s3_path"])
 
             # 변환 실행
-            output_df = transform_fn(input_dfs, partition_date, tenant_id)
+            output_df = transfer_fn(input_dfs, partition_date, tenant_id)
 
             # S3에 저장
             s3_path = s3.write_parquet_for_tenant(
                 df=output_df,
                 tenant_id=tenant_id,
-                stage="transform",
+                stage="transfer",
                 job_name=asset_name,
-                partition_date=partition_date,
+                partition_date=partition_date if partition_date != "latest" else None,
             )
 
             output_rows = len(output_df)
@@ -208,35 +268,43 @@ class AssetFactory:
                 },
             )
 
-        return _transform_asset
+        return _transfer_asset
 
     def create_load_asset(
         self,
         asset_name: str,
-        input_asset: str,
-        target_table: str,
-        target_schema: str,
-        key_columns: list[str],
+        config: PipelineAssetConfig,
     ) -> AssetsDefinition:
         """
-        Load Asset 생성
+        Load Asset 생성 (output_save)
+        Trino를 통해 데이터 적재
 
         Args:
-            asset_name: Asset 이름 (e.g., "aps_wip")
-            input_asset: 입력 Transform Asset 이름 (tenant prefix 없이)
-            target_table: 타겟 테이블명
-            target_schema: 타겟 스키마명
-            key_columns: Upsert 키 컬럼 (project_id 포함)
+            asset_name: Asset 이름 (e.g., "cfg_item_master")
+            config: 파이프라인 설정
         """
         tenant_id = self.tenant_id
         tenant_name = self.tenant.name
         full_asset_name = f"{tenant_id}/load/{asset_name}"
+        partitions_def = self._get_partitions_def(config)
+        trino_config = config.trino_output
+
+        # 입력 단계 결정: transfer가 있으면 transfer, 없으면 extract
+        if config.has_transfer:
+            input_stage = "transfer"
+        else:
+            input_stage = "extract"
+
+        input_asset_name = asset_name
+        target_table = trino_config.target_table
+        target_schema = trino_config.target_schema
+        key_columns = trino_config.key_columns
 
         @asset(
             name=asset_name,
             key_prefix=[tenant_id, "load"],
-            partitions_def=daily_partitions_def,
-            ins={input_asset: AssetIn(key=[tenant_id, "transform", input_asset])},
+            partitions_def=partitions_def,
+            ins={input_asset_name: AssetIn(key=[tenant_id, input_stage, input_asset_name])},
             group_name=tenant_id,
             description=f"[{tenant_name}] Load {asset_name} to {target_schema}.{target_table}",
             compute_kind="trino",
@@ -253,9 +321,9 @@ class AssetFactory:
             trino: TrinoResource,
             **inputs: dict[str, Any],
         ) -> Output[dict[str, Any]]:
-            partition_date = context.partition_key
             logger = ETLLogger(f"load.{tenant_id}")
-            input_data = inputs[input_asset]
+            partition_date = context.partition_key if partitions_def else "latest"
+            input_data = inputs[input_asset_name]
 
             logger.log_load_start(full_asset_name, partition_date, target_table)
 
@@ -298,71 +366,30 @@ class AssetFactory:
 
     def create_all_etl_assets(self) -> list[AssetsDefinition]:
         """
-        테넌트의 모든 ETL Asset 생성 (TenantLoader 기반)
+        테넌트의 모든 ETL Asset 생성 (PipelineAssetConfig 기반)
 
-        Extract/Transform/Load 각 단계별 Asset을 생성하며,
-        TenantLoader를 통해 테넌트별 커스텀 코드가 자동 적용됨.
+        파이프라인 설정에 따라 각 단계별 Asset을 동적으로 생성:
+        - extract: 항상 생성 (RDB → S3)
+        - transfer: has_transfer=True일 때만 생성
+        - load: save_to_trino=True일 때만 생성
 
         Returns:
             AssetsDefinition 리스트
         """
         assets = []
+        pipelines = self._get_pipeline_configs()
 
-        # Extract Asset 설정 (공용 + 커스텀)
-        extract_configs = [
-            {"name": "lot_history", "source_table": "lot_history", "date_column": "created_at"},
-            {"name": "equipment_event", "source_table": "equipment_event", "date_column": "event_time"},
-            {"name": "process_result", "source_table": "process_result", "date_column": "measured_at"},
-        ]
+        for name, config in pipelines.items():
+            # 1. Extract (항상 생성)
+            assets.append(self.create_extract_asset(name, config))
 
-        # Extract Assets 생성
-        for config in extract_configs:
-            asset = self.create_extract_asset(
-                asset_name=config["name"],
-                source_table=config["source_table"],
-                date_column=config["date_column"],
-            )
-            assets.append(asset)
+            # 2. Transfer (선택)
+            if config.has_transfer:
+                transfer_fn = self.tenant_loader.get_transfer_function(name)
+                assets.append(self.create_transfer_asset(name, config, transfer_fn))
 
-        # Transform Asset 설정 (TenantLoader에서 함수 조회)
-        transform_configs = [
-            {
-                "name": "aps_wip",
-                "input_assets": ["lot_history"],
-            },
-            {
-                "name": "cycle_time",
-                "input_assets": ["lot_history", "process_result"],
-            },
-            {
-                "name": "equipment_utilization",
-                "input_assets": ["equipment_event"],
-            },
-        ]
-
-        # Transform Assets 생성 (TenantLoader에서 커스텀/공용 함수 자동 선택)
-        for config in transform_configs:
-            transform_fn = self.tenant_loader.get_transform_function(config["name"])
-            asset = self.create_transform_asset(
-                asset_name=config["name"],
-                input_assets=config["input_assets"],
-                transform_fn=transform_fn,
-            )
-            assets.append(asset)
-
-        # Load Asset 설정 (TenantLoader에서 설정 조회)
-        load_asset_names = ["aps_wip", "cycle_time", "equipment_utilization"]
-
-        # Load Assets 생성 (TenantLoader에서 커스텀/공용 설정 자동 선택)
-        for asset_name in load_asset_names:
-            load_config = self.tenant_loader.get_load_config(asset_name)
-            asset = self.create_load_asset(
-                asset_name=asset_name,
-                input_asset=asset_name,  # Transform과 Load는 같은 이름
-                target_table=load_config["target_table"],
-                target_schema=load_config["target_schema"],
-                key_columns=load_config["key_columns"],
-            )
-            assets.append(asset)
+            # 3. Load (선택)
+            if config.save_to_trino and config.trino_output:
+                assets.append(self.create_load_asset(name, config))
 
         return assets

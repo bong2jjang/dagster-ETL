@@ -1,5 +1,5 @@
 """Project 01 Tenant Custom Assets"""
 
-from etl.tenants.project_01.assets import transform
+from etl.tenants.project_01.assets import transfer
 
-__all__ = ["transform"]
+__all__ = ["transfer"]

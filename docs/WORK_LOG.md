@@ -5,7 +5,36 @@
 
 ---
 
-## 현재 프로젝트 상태 (2026-02-05 기준)
+## 작업 이력: 파이프라인 구조 변경 (2026-02-06)
+
+### 변경 내용
+기존 `extract → transform → load` 3단계를 새로운 파이프라인 기반 구조로 변경.
+
+**새 파이프라인 흐름:**
+- `extract` (input_load): RDB에서 추출 → S3 Parquet 저장 (항상)
+- `transfer`: 입력 데이터 가공 (선택, `has_transfer=True`)
+- `load` (output_save): Trino에 적재 (선택, `save_to_trino=True`)
+
+**핵심 변경 사항:**
+1. `PipelineAssetConfig` Pydantic 모델 추가 - 파이프라인별 설정 (파티션/비파티션, transfer 여부, Trino 적재 여부)
+2. `AssetFactory` 전면 재작성 - PipelineAssetConfig 기반 동적 Asset 생성
+3. 비파티션 데이터 지원 (`date_column=None` → `partitions_def=None`, S3 경로 `latest/`)
+4. `JobFactory` 업데이트 - 파티션/비파티션 Job 분리 (`daily_etl_job` + `master_sync_job`)
+5. `transform.py` → `transfer.py` 리네임 (공통, 테넌트, 템플릿 모두)
+6. 테넌트 YAML에 `assets.pipelines` 설정 추가
+
+**CFG_ITEM_MASTER 샘플 (project_01):**
+- 비파티션 마스터 데이터 (파티션 없음)
+- extract → load (transfer 없음, 직접 Trino 적재)
+- `project_01/extract/cfg_item_master` → `project_01/load/cfg_item_master`
+
+**검증 결과:**
+- project_01: 11 assets, 5 jobs, 1 schedule
+- default: 9 assets, 4 jobs, 1 schedule
+
+---
+
+## 현재 프로젝트 상태 (2026-02-06 기준)
 
 ### 아키텍처 개요
 
@@ -17,9 +46,9 @@ etl/
 ├── all.py                   # 전체 통합 Code Location
 ├── common/                  # 공용 코드 (Single Source of Truth)
 │   └── assets/
-│       ├── extract.py       # 기본 Extract 쿼리/설정
-│       ├── transform.py     # 기본 Transform 로직
-│       └── load.py          # 기본 Load 설정
+│       ├── extract.py       # 기본 Extract(Input Load) 쿼리/설정
+│       ├── transfer.py      # 기본 Transfer 로직
+│       └── load.py          # 기본 Load(Output Save) 설정
 ├── assets/                  # 레거시 호환성 레이어
 │   ├── extract.py           # → common 사용
 │   ├── transform.py         # → common 사용
@@ -29,7 +58,7 @@ etl/
 │   │   ├── __init__.py
 │   │   ├── config.yaml
 │   │   └── assets/
-│   │       └── transform.py
+│   │       └── transfer.py
 │   ├── default/             # 기본 테넌트 (common만 사용)
 │   └── project_01/          # Project 01 테넌트 (커스텀 Transform)
 ├── config/                  # 설정 관리

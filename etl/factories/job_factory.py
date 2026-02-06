@@ -1,65 +1,112 @@
 """
 Job Factory - 테넌트별 Job 동적 생성
+PipelineAssetConfig 기반으로 파티션/비파티션 Job 분리
 """
 
 from dagster import AssetKey, AssetSelection, define_asset_job
 
-from etl.config.tenant_config import TenantConfig
+from etl.config.tenant_config import PipelineAssetConfig, TenantConfig
 from etl.partitions.daily import daily_partitions_def
 
 
 class JobFactory:
     """테넌트별 Job 생성 팩토리"""
 
-    def __init__(self, tenant: TenantConfig):
+    def __init__(self, tenant: TenantConfig, environment: str = "dev"):
         self.tenant = tenant
         self.tenant_id = tenant.id
+        self.environment = environment
 
     def _asset_key(self, stage: str, name: str) -> AssetKey:
         """계층형 Asset Key 생성"""
         return AssetKey([self.tenant_id, stage, name])
 
+    def _get_pipeline_configs(self) -> dict[str, PipelineAssetConfig]:
+        """테넌트의 파이프라인 설정 조회 (환경별 오버라이드 적용)"""
+        if self.tenant.assets.pipelines:
+            pipelines = self.tenant.assets.pipelines
+        else:
+            pipelines = self.tenant.get_default_assets_config().pipelines
+
+        return {
+            name: config.resolve_for_env(self.environment)
+            for name, config in pipelines.items()
+        }
+
+    def _collect_pipeline_assets(
+        self, config: PipelineAssetConfig, name: str
+    ) -> list[AssetKey]:
+        """파이프라인의 모든 Asset Key 수집"""
+        keys = [self._asset_key("extract", name)]
+        if config.has_transfer:
+            keys.append(self._asset_key("transfer", name))
+        if config.save_to_trino and config.trino_output:
+            keys.append(self._asset_key("load", name))
+        return keys
+
     def create_all_jobs(self) -> list:
         """테넌트의 모든 활성화된 Job 생성"""
         jobs = []
         jobs_config = self.tenant.jobs
+        pipelines = self._get_pipeline_configs()
 
-        # Daily ETL Job (전체 파이프라인)
-        if jobs_config.daily_etl.enabled:
-            jobs.append(self._create_daily_etl_job())
+        # 파티션별 파이프라인 분류
+        partitioned = {k: v for k, v in pipelines.items() if v.date_column}
+        non_partitioned = {k: v for k, v in pipelines.items() if not v.date_column}
 
-        # Extract Only Job
-        if jobs_config.extract_only.enabled:
-            jobs.append(self._create_extract_job())
+        # Daily ETL Job (파티션 있는 asset만)
+        if jobs_config.daily_etl.enabled and partitioned:
+            jobs.append(self._create_daily_etl_job(partitioned))
 
-        # Transform Only Job
-        if jobs_config.transform_only.enabled:
-            jobs.append(self._create_transform_job())
-
-        # Load Only Job
-        if jobs_config.load_only.enabled:
-            jobs.append(self._create_load_job())
+        # Master Sync Job (비파티션 asset만)
+        if jobs_config.master_sync.enabled and non_partitioned:
+            jobs.append(self._create_master_sync_job(non_partitioned))
 
         # WIP Pipeline Job
         if jobs_config.wip_pipeline.enabled:
-            jobs.append(self._create_wip_pipeline_job())
+            job = self._create_pipeline_job(
+                pipelines, "wip_pipeline", "WIP Data Pipeline",
+                extract_names=["lot_history"],
+                transfer_names=["aps_wip"],
+                load_names=["aps_wip"],
+            )
+            if job:
+                jobs.append(job)
 
         # Cycle Time Pipeline Job
         if jobs_config.cycle_time_pipeline.enabled:
-            jobs.append(self._create_cycle_time_pipeline_job())
+            job = self._create_pipeline_job(
+                pipelines, "cycle_time_pipeline", "Cycle Time Pipeline",
+                extract_names=["lot_history", "process_result"],
+                transfer_names=["cycle_time"],
+                load_names=["cycle_time"],
+            )
+            if job:
+                jobs.append(job)
 
         # Equipment Pipeline Job
         if jobs_config.equipment_pipeline.enabled:
-            jobs.append(self._create_equipment_pipeline_job())
+            job = self._create_pipeline_job(
+                pipelines, "equipment_pipeline", "Equipment Utilization Pipeline",
+                extract_names=["equipment_event"],
+                transfer_names=["equipment_utilization"],
+                load_names=["equipment_utilization"],
+            )
+            if job:
+                jobs.append(job)
 
         return jobs
 
-    def _create_daily_etl_job(self):
-        """Daily ETL 전체 파이프라인 Job"""
+    def _create_daily_etl_job(self, partitioned_pipelines: dict[str, PipelineAssetConfig]):
+        """Daily ETL 파이프라인 Job (파티션 있는 asset만)"""
+        asset_keys = []
+        for name, config in partitioned_pipelines.items():
+            asset_keys.extend(self._collect_pipeline_assets(config, name))
+
         return define_asset_job(
             name=f"{self.tenant_id}_daily_etl_job",
-            description=f"[{self.tenant.name}] Daily ETL Pipeline (Extract → Transform → Load)",
-            selection=AssetSelection.groups(self.tenant_id),
+            description=f"[{self.tenant.name}] Daily ETL Pipeline (Extract → Transfer → Load)",
+            selection=AssetSelection.assets(*asset_keys),
             partitions_def=daily_partitions_def,
             tags={
                 "tenant_id": self.tenant_id,
@@ -68,111 +115,66 @@ class JobFactory:
             },
         )
 
-    def _create_extract_job(self):
-        """Extract 단계만 실행하는 Job"""
+    def _create_master_sync_job(self, non_partitioned_pipelines: dict[str, PipelineAssetConfig]):
+        """마스터 데이터 동기화 Job (비파티션 asset)"""
+        asset_keys = []
+        for name, config in non_partitioned_pipelines.items():
+            asset_keys.extend(self._collect_pipeline_assets(config, name))
+
         return define_asset_job(
-            name=f"{self.tenant_id}_extract_job",
-            description=f"[{self.tenant.name}] Extract Only",
-            selection=AssetSelection.assets(
-                self._asset_key("extract", "lot_history"),
-                self._asset_key("extract", "equipment_event"),
-                self._asset_key("extract", "process_result"),
-            ),
-            partitions_def=daily_partitions_def,
+            name=f"{self.tenant_id}_master_sync_job",
+            description=f"[{self.tenant.name}] Master Data Sync (Non-partitioned)",
+            selection=AssetSelection.assets(*asset_keys),
             tags={
                 "tenant_id": self.tenant_id,
-                "stage": "extract",
+                "pipeline": "master-sync",
                 **self.tenant.tags,
             },
         )
 
-    def _create_transform_job(self):
-        """Transform 단계만 실행하는 Job"""
-        return define_asset_job(
-            name=f"{self.tenant_id}_transform_job",
-            description=f"[{self.tenant.name}] Transform Only",
-            selection=AssetSelection.assets(
-                self._asset_key("transform", "aps_wip"),
-                self._asset_key("transform", "cycle_time"),
-                self._asset_key("transform", "equipment_utilization"),
-            ),
-            partitions_def=daily_partitions_def,
-            tags={
-                "tenant_id": self.tenant_id,
-                "stage": "transform",
-                **self.tenant.tags,
-            },
+    def _create_pipeline_job(
+        self,
+        pipelines: dict[str, PipelineAssetConfig],
+        job_name_suffix: str,
+        description: str,
+        extract_names: list[str],
+        transfer_names: list[str],
+        load_names: list[str],
+    ):
+        """개별 파이프라인 Job 생성 (지정된 asset이 존재하는 경우만)"""
+        asset_keys = []
+
+        for name in extract_names:
+            if name in pipelines:
+                asset_keys.append(self._asset_key("extract", name))
+
+        for name in transfer_names:
+            if name in pipelines and pipelines.get(name, PipelineAssetConfig(source_table="")).has_transfer:
+                asset_keys.append(self._asset_key("transfer", name))
+
+        for name in load_names:
+            config = pipelines.get(name)
+            if config and config.save_to_trino and config.trino_output:
+                asset_keys.append(self._asset_key("load", name))
+
+        if not asset_keys:
+            return None
+
+        # 파티션 여부 결정 (모든 관련 asset이 파티션인지 확인)
+        has_partition = any(
+            pipelines.get(name, PipelineAssetConfig(source_table="")).date_column
+            for name in extract_names
+            if name in pipelines
         )
 
-    def _create_load_job(self):
-        """Load 단계만 실행하는 Job"""
         return define_asset_job(
-            name=f"{self.tenant_id}_load_job",
-            description=f"[{self.tenant.name}] Load Only",
-            selection=AssetSelection.assets(
-                self._asset_key("load", "aps_wip"),
-                self._asset_key("load", "cycle_time"),
-                self._asset_key("load", "equipment_utilization"),
-            ),
-            partitions_def=daily_partitions_def,
+            name=f"{self.tenant_id}_{job_name_suffix}_job",
+            description=f"[{self.tenant.name}] {description}",
+            selection=AssetSelection.assets(*asset_keys),
+            partitions_def=daily_partitions_def if has_partition else None,
             tags={
                 "tenant_id": self.tenant_id,
-                "stage": "load",
-                **self.tenant.tags,
-            },
-        )
-
-    def _create_wip_pipeline_job(self):
-        """WIP 데이터 파이프라인 Job"""
-        return define_asset_job(
-            name=f"{self.tenant_id}_wip_pipeline_job",
-            description=f"[{self.tenant.name}] WIP Data Pipeline",
-            selection=AssetSelection.assets(
-                self._asset_key("extract", "lot_history"),
-                self._asset_key("transform", "aps_wip"),
-                self._asset_key("load", "aps_wip"),
-            ),
-            partitions_def=daily_partitions_def,
-            tags={
-                "tenant_id": self.tenant_id,
-                "pipeline": "wip",
-                **self.tenant.tags,
-            },
-        )
-
-    def _create_cycle_time_pipeline_job(self):
-        """Cycle Time 데이터 파이프라인 Job"""
-        return define_asset_job(
-            name=f"{self.tenant_id}_cycle_time_pipeline_job",
-            description=f"[{self.tenant.name}] Cycle Time Pipeline",
-            selection=AssetSelection.assets(
-                self._asset_key("extract", "lot_history"),
-                self._asset_key("extract", "process_result"),
-                self._asset_key("transform", "cycle_time"),
-                self._asset_key("load", "cycle_time"),
-            ),
-            partitions_def=daily_partitions_def,
-            tags={
-                "tenant_id": self.tenant_id,
-                "pipeline": "cycle-time",
-                **self.tenant.tags,
-            },
-        )
-
-    def _create_equipment_pipeline_job(self):
-        """설비 가동률 데이터 파이프라인 Job"""
-        return define_asset_job(
-            name=f"{self.tenant_id}_equipment_pipeline_job",
-            description=f"[{self.tenant.name}] Equipment Utilization Pipeline",
-            selection=AssetSelection.assets(
-                self._asset_key("extract", "equipment_event"),
-                self._asset_key("transform", "equipment_utilization"),
-                self._asset_key("load", "equipment_utilization"),
-            ),
-            partitions_def=daily_partitions_def,
-            tags={
-                "tenant_id": self.tenant_id,
-                "pipeline": "equipment",
+                "pipeline": job_name_suffix.replace("_", "-"),
                 **self.tenant.tags,
             },
         )

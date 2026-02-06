@@ -51,11 +51,30 @@ DEFAULT_EXTRACT_QUERIES = {
             measured_at
         FROM process_result
     """,
+    "cfg_item_master": """
+        SELECT
+            project_id,
+            item_id,
+            item_type,
+            item_name,
+            item_group_id,
+            description,
+            item_priority,
+            procurement_type,
+            prod_type,
+            item_size_type,
+            item_spec,
+            create_datetime,
+            update_datetime
+        FROM cfg_item_master
+        WHERE 
+            project_id = 'EED70012-E49D-4BA5-AD05-870C338DF39A'
+    """,
 }
-
 
 # 기본 Extract 설정
 DEFAULT_EXTRACT_CONFIGS = {
+
     "lot_history": {
         "source_table": "lot_history",
         "date_column": "DATE(created_at)",
@@ -67,6 +86,10 @@ DEFAULT_EXTRACT_CONFIGS = {
     "process_result": {
         "source_table": "process_result",
         "date_column": "DATE(measured_at)",
+    },
+    "cfg_item_master": {
+        "source_table": "cfg_item_master",
+        "date_column": None,  # 파티션 없음 (마스터 데이터)
     },
 }
 

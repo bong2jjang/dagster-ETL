@@ -12,10 +12,10 @@ Template Tenant - 새 테넌트 생성 템플릿
 구조:
     tenants/{tenant_id}/
     ├── __init__.py          # 테넌트 정의 및 커스텀 설정
-    ├── config.yaml          # 테넌트 설정 (DB, Storage, Jobs)
+    ├── config.yaml          # 테넌트 설정 (DB, Storage, Jobs, Pipelines)
     └── assets/              # 커스텀 Asset 로직 (선택)
         ├── __init__.py
-        └── transform.py     # 커스텀 Transform 로직
+        └── transfer.py      # 커스텀 Transfer 로직
 
 커스텀 코드 우선순위:
 1. tenants/{tenant_id}/assets/ 에 정의된 로직
@@ -52,17 +52,17 @@ CUSTOM_EXTRACT_QUERIES = None
 
 
 # =============================================================================
-# 커스텀 Transform 함수
+# 커스텀 Transfer 함수
 # =============================================================================
 # None이면 common 사용, 함수를 지정하면 해당 함수 사용
-CUSTOM_TRANSFORM_FUNCTIONS = None
+CUSTOM_TRANSFER_FUNCTIONS = None
 
-# 예시: 커스텀 Transform 함수 등록
-# from etl.tenants.{tenant_id}.assets.transform import (
+# 예시: 커스텀 Transfer 함수 등록
+# from etl.tenants.{tenant_id}.assets.transfer import (
 #     transform_aps_wip_logic as custom_wip_logic,
 # )
 #
-# CUSTOM_TRANSFORM_FUNCTIONS = {
+# CUSTOM_TRANSFER_FUNCTIONS = {
 #     "aps_wip": custom_wip_logic,  # 커스텀 함수 사용
 #     "cycle_time": None,           # common 사용
 #     "equipment_utilization": None, # common 사용

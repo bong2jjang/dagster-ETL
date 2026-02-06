@@ -35,6 +35,16 @@ class ScheduleFactory:
             if schedule:
                 schedules.append(schedule)
 
+        # Master Sync Schedule
+        if jobs_config.master_sync.enabled and jobs_config.master_sync.schedule:
+            schedule = self._create_schedule(
+                job_suffix="master_sync_job",
+                schedule_config=jobs_config.master_sync.schedule,
+                schedule_suffix="master_sync_schedule",
+            )
+            if schedule:
+                schedules.append(schedule)
+
         # WIP Pipeline Schedule
         if jobs_config.wip_pipeline.enabled and jobs_config.wip_pipeline.schedule:
             schedule = self._create_schedule(
